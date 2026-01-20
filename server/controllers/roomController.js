@@ -8,7 +8,7 @@ import Notification from '../models/Notification.js';
 // @access  Private
 export const createRoom = async (req, res, next) => {
   try {
-    const { title, description, category, isVideoEnabled, autoDeleteMinutes, maxParticipants } = req.body;
+    const { title, description, category, isVideoEnabled, autoDeleteMinutes,autoDeleteAt, maxParticipants } = req.body;
 
     if (!title) {
       return res.status(400).json({
@@ -17,10 +17,30 @@ export const createRoom = async (req, res, next) => {
       });
     }
 
-    // Calculate auto delete time
-    let autoDeleteAt = null;
-    if (autoDeleteMinutes && autoDeleteMinutes > 0) {
+    let deleteAt = null;
+      // --- OPTION 1: User selects a specific date/time ---
+    if (autoDeleteAt) {
+      deleteAt = new Date(autoDeleteAt);
+
+      // protect against invalid dates
+      if (isNaN(deleteAt.getTime())) {
+        return res.status(400).json({ message: 'Invalid date' });
+      }
+
+      // cannot set a time in the past
+      if (deleteAt <= Date.now()) {
+        return res.status(400).json({ message: 'Invalid time' });
+      }
+    }
+
+    // Calculate auto delete time --option 2
+
+    else if (autoDeleteMinutes && autoDeleteMinutes > 0) {
       autoDeleteAt = new Date(Date.now() + autoDeleteMinutes * 60 * 1000);
+    }
+
+    else{
+        deleteAt = null; // room will not auto-delete
     }
 
     // Create room

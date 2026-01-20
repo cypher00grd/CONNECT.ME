@@ -1,7 +1,7 @@
 {
-  "name": "linkly-server",
+  "name": "CONNECT-server",
   "version": "1.0.0",
-  "description": "Linkly Backend Server",
+  "description": " Backend Server",
   "main": "server.js",
   "type": "module",
   "scripts": {

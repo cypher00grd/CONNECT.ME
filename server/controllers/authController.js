@@ -1,50 +1,50 @@
-import jwt from 'jsonwebtoken';
-import User from '../models/User.js';
+import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import User from "../models/User.js";
 
 // Generate JWT Token
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d'
+    expiresIn: "30d",
   });
 };
 
-// @desc    Register new user
-// @route   POST /api/auth/signup
-// @access  Public
+// ===================== SIGNUP =====================
 export const signup = async (req, res, next) => {
   try {
     const { username, email, password, displayName } = req.body;
 
-    // Validate input
     if (!username || !email || !password || !displayName) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: "All fields are required",
       });
     }
 
-    // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }]
+      $or: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }],
     });
 
     if (existingUser) {
-      const field = existingUser.email === email.toLowerCase() ? 'Email' : 'Username';
       return res.status(400).json({
         success: false,
-        message: `${field} is already registered`
+        message:
+          existingUser.email === email.toLowerCase()
+            ? "Email already exists"
+            : "Username already exists",
       });
     }
 
-    // Create user
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const user = await User.create({
       username: username.toLowerCase(),
       email: email.toLowerCase(),
-      password,
-      displayName
+      password: hashedPassword,
+      displayName,
     });
 
-    // Generate token
     const token = generateToken(user._id);
 
     res.status(201).json({
@@ -58,50 +58,46 @@ export const signup = async (req, res, next) => {
         bio: user.bio,
         followers: user.followers,
         following: user.following,
-        token
-      }
+        token,
+      },
     });
   } catch (error) {
+    console.error("Signup error:", error);
     next(error);
   }
 };
 
-// @desc    Login user
-// @route   POST /api/auth/login
-// @access  Public
+// ===================== LOGIN =====================
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and password'
+        message: "Email and password required",
       });
     }
 
-    // Find user by email
     const user = await User.findOne({ email: email.toLowerCase() });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: "Invalid email or password",
       });
     }
 
-    // Check password
-    const isMatch = await user.comparePassword(password);
+    // Compare passwords
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: "Invalid email or password",
       });
     }
 
-    // Generate token
     const token = generateToken(user._id);
 
     res.status(200).json({
@@ -115,35 +111,34 @@ export const login = async (req, res, next) => {
         bio: user.bio,
         followers: user.followers,
         following: user.following,
-        token
-      }
+        token,
+      },
     });
   } catch (error) {
+    console.error("Login error:", error);
     next(error);
   }
 };
 
-// @desc    Get current user
-// @route   GET /api/auth/me
-// @access  Private
+// ===================== GET LOGGED USER =====================
 export const getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
-      .populate('followers', 'username displayName avatar')
-      .populate('following', 'username displayName avatar');
+      .select("-password")
+      .populate("followers", "username displayName avatar")
+      .populate("following", "username displayName avatar");
 
     res.status(200).json({
       success: true,
-      data: user
+      data: user,
     });
   } catch (error) {
+    console.error("getMe error:", error);
     next(error);
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/auth/profile
-// @access  Private
+// ===================== UPDATE PROFILE =====================
 export const updateProfile = async (req, res, next) => {
   try {
     const { displayName, bio, avatar } = req.body;
@@ -153,16 +148,17 @@ export const updateProfile = async (req, res, next) => {
       {
         ...(displayName && { displayName }),
         ...(bio !== undefined && { bio }),
-        ...(avatar !== undefined && { avatar })
+        ...(avatar !== undefined && { avatar }),
       },
       { new: true, runValidators: true }
-    );
+    ).select("-password");
 
     res.status(200).json({
       success: true,
-      data: user
+      data: user,
     });
   } catch (error) {
+    console.error("Update profile error:", error);
     next(error);
   }
 };
