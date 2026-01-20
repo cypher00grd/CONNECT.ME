@@ -16,12 +16,22 @@ export const setupHandlers = (socket, io) => {
   // Join a room
   socket.on('join_room', async (roomId) => {
     try {
-      const room = await Room.findById(roomId);
+      const room = await Room.findById(roomId)
+      .populate('creator' , 'followers');
       
       if (!room || room.status !== 'active') {
-        socket.emit('error', { message: 'Room not found or has ended' });
+        socket.emit('error', { message: 'Room not found or  ended' });
         return;
       }
+// validate followerr rule -- if followed thn only can join rrom
+     const isCreator = room.creator._id.toString() === socket.user._id.toString();
+    const isFollower = room.creator.followers.some(
+      f => f.toString() === socket.user._id.toString()
+    );
+
+    if (!isCreator && !isFollower) {
+      return socket.emit('error', { message: 'Follow creator to join room' });
+    }
 
       socket.join(roomId);
       console.log(`${socket.user.username} joined room: ${roomId}`);
@@ -156,8 +166,12 @@ export const setupHandlers = (socket, io) => {
 // later will implement SFU for  scalability.
 
 // 1. Someone turns ON camera -> notify everyone in the room
-socket.on('video_started', (roomId) => {
+socket.on('video_started', (roomId) => { 
   console.log(`${socket.user.username} started video in room ${roomId}`);
+
+  if (!socket.rooms.has(roomId)) {
+    return socket.emit('error', { message: 'Join room first' });
+  }
 
   socket.to(roomId).emit('video_started', {
     userId: socket.user._id,

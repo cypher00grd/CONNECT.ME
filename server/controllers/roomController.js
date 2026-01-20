@@ -1,14 +1,24 @@
+// controllers/roomController.js
+
 import Room from '../models/Room.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Notification from '../models/Notification.js';
 
-// @desc    Create a new room
-// @route   POST /api/rooms
-// @access  Private
+// -----------------------------------------------------
+// CREATE ROOM
+// -----------------------------------------------------
 export const createRoom = async (req, res, next) => {
   try {
-    const { title, description, category, isVideoEnabled, autoDeleteMinutes,autoDeleteAt, maxParticipants } = req.body;
+    const {
+      title,
+      description,
+      category,
+      isVideoEnabled,
+      autoDeleteMinutes,
+      autoDeleteAt,
+      maxParticipants
+    } = req.body;
 
     if (!title) {
       return res.status(400).json({
@@ -17,54 +27,48 @@ export const createRoom = async (req, res, next) => {
       });
     }
 
-    let deleteAt = null;
-      // --- OPTION 1: User selects a specific date/time ---
+    let finalAutoDeleteAt = null;
+
+    // OPTION 1 → User provides a specific date/time
     if (autoDeleteAt) {
-      deleteAt = new Date(autoDeleteAt);
+      const parsed = new Date(autoDeleteAt);
 
-      // protect against invalid dates
-      if (isNaN(deleteAt.getTime())) {
-        return res.status(400).json({ message: 'Invalid date' });
+      if (isNaN(parsed.getTime()) || parsed <= Date.now()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid auto delete time'
+        });
       }
 
-      // cannot set a time in the past
-      if (deleteAt <= Date.now()) {
-        return res.status(400).json({ message: 'Invalid time' });
-      }
+      finalAutoDeleteAt = parsed;
     }
 
-    // Calculate auto delete time --option 2
-
+    // OPTION 2 → Minutes from now
     else if (autoDeleteMinutes && autoDeleteMinutes > 0) {
-      autoDeleteAt = new Date(Date.now() + autoDeleteMinutes * 60 * 1000);
+      finalAutoDeleteAt = new Date(Date.now() + autoDeleteMinutes * 60 * 1000);
     }
 
-    else{
-        deleteAt = null; // room will not auto-delete
-    }
+    // OPTION 3 → Manual delete (null)
 
-    // Create room
     const room = await Room.create({
       title,
       description: description || '',
       category: category || 'other',
       creator: req.user._id,
       isVideoEnabled: isVideoEnabled || false,
-      autoDeleteAt,
+      autoDeleteAt: finalAutoDeleteAt,
       maxParticipants: maxParticipants || 10,
       participants: [{ user: req.user._id }]
     });
 
-    // Populate room data
     const populatedRoom = await Room.findById(room._id)
       .populate('creator', 'username displayName avatar')
       .populate('participants.user', 'username displayName avatar');
 
-    // Notify all followers
+    // Real-time + DB notifications for followers
     const creator = await User.findById(req.user._id).populate('followers');
 
     if (creator.followers.length > 0) {
-      // Create notifications
       const notifications = creator.followers.map((follower) => ({
         recipient: follower._id,
         sender: req.user._id,
@@ -75,7 +79,6 @@ export const createRoom = async (req, res, next) => {
 
       await Notification.insertMany(notifications);
 
-      // Send real-time notifications
       const io = req.app.get('io');
       if (io) {
         creator.followers.forEach((follower) => {
@@ -94,18 +97,15 @@ export const createRoom = async (req, res, next) => {
       }
     }
 
-    res.status(201).json({
-      success: true,
-      data: populatedRoom
-    });
-  } catch (error) {
-    next(error);
+    res.status(201).json({ success: true, data: populatedRoom });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Get feed rooms (from followed users)
-// @route   GET /api/rooms/feed
-// @access  Private
+// -----------------------------------------------------
+// FEED ROOMS
+// -----------------------------------------------------
 export const getFeedRooms = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
@@ -118,18 +118,15 @@ export const getFeedRooms = async (req, res, next) => {
       .populate('participants.user', 'username displayName avatar')
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      data: rooms
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, data: rooms });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Get my rooms (created by me)
-// @route   GET /api/rooms/my-rooms
-// @access  Private
+// -----------------------------------------------------
+// GET MY ROOMS
+// -----------------------------------------------------
 export const getMyRooms = async (req, res, next) => {
   try {
     const rooms = await Room.find({ creator: req.user._id })
@@ -137,97 +134,75 @@ export const getMyRooms = async (req, res, next) => {
       .populate('participants.user', 'username displayName avatar')
       .sort({ createdAt: -1 });
 
-    res.status(200).json({
-      success: true,
-      data: rooms
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, data: rooms });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Get single room
-// @route   GET /api/rooms/:id
-// @access  Private
+// -----------------------------------------------------
+// GET SINGLE ROOM
+// -----------------------------------------------------
 export const getRoom = async (req, res, next) => {
   try {
     const room = await Room.findById(req.params.id)
       .populate('creator', 'username displayName avatar followers')
       .populate('participants.user', 'username displayName avatar');
 
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
+    if (!room)
+      return res.status(404).json({ success: false, message: 'Room not found' });
 
-    // Check if user can access room
     const isCreator = room.creator._id.toString() === req.user._id.toString();
     const isFollower = room.creator.followers.some(
       (f) => f.toString() === req.user._id.toString()
     );
 
-    if (!isCreator && !isFollower) {
+    if (!isCreator && !isFollower)
       return res.status(403).json({
         success: false,
-        message: 'You must follow this user to view their room'
+        message: 'You must follow this user to view this room'
       });
-    }
 
-    res.status(200).json({
-      success: true,
-      data: room
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, data: room });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Join a room
-// @route   POST /api/rooms/:id/join
-// @access  Private
+// -----------------------------------------------------
+// JOIN ROOM
+// -----------------------------------------------------
 export const joinRoom = async (req, res, next) => {
   try {
     const room = await Room.findById(req.params.id)
       .populate('creator', 'username displayName avatar followers');
 
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
+    if (!room)
+      return res.status(404).json({ success: false, message: 'Room not found' });
 
-    if (room.status !== 'active') {
+    if (room.status !== 'active')
       return res.status(400).json({
         success: false,
         message: 'This room has ended'
       });
-    }
 
-    // Check if user follows the creator or is the creator
     const isCreator = room.creator._id.toString() === req.user._id.toString();
     const isFollower = room.creator.followers.some(
       (f) => f.toString() === req.user._id.toString()
     );
 
-    if (!isCreator && !isFollower) {
+    if (!isCreator && !isFollower)
       return res.status(403).json({
         success: false,
-        message: 'You must follow this user to join their room'
+        message: 'You must follow this user to join'
       });
-    }
 
-    // Check if room is full
-    if (room.participants.length >= room.maxParticipants) {
+    if (room.participants.length >= room.maxParticipants)
       return res.status(400).json({
         success: false,
         message: 'Room is full'
       });
-    }
 
-    // Check if already joined
     const alreadyJoined = room.participants.some(
       (p) => p.user.toString() === req.user._id.toString()
     );
@@ -241,7 +216,6 @@ export const joinRoom = async (req, res, next) => {
       .populate('creator', 'username displayName avatar')
       .populate('participants.user', 'username displayName avatar');
 
-    // Notify room via socket
     const io = req.app.get('io');
     if (io) {
       io.to(room._id.toString()).emit('user_joined', {
@@ -255,83 +229,62 @@ export const joinRoom = async (req, res, next) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: updatedRoom
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, data: updatedRoom });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Leave a room
-// @route   POST /api/rooms/:id/leave
-// @access  Private
+// -----------------------------------------------------
+// LEAVE ROOM
+// -----------------------------------------------------
 export const leaveRoom = async (req, res, next) => {
   try {
     const room = await Room.findById(req.params.id);
 
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
+    if (!room)
+      return res.status(404).json({ success: false, message: 'Room not found' });
 
-    // Remove user from participants
     room.participants = room.participants.filter(
       (p) => p.user.toString() !== req.user._id.toString()
     );
 
     await room.save();
 
-    // Notify room via socket
     const io = req.app.get('io');
     if (io) {
       io.to(room._id.toString()).emit('user_left', {
         userId: req.user._id,
-        username: req.user.username,
         participantCount: room.participants.length
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Left room successfully'
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, message: 'Left room successfully' });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    End/destroy a room
-// @route   DELETE /api/rooms/:id
-// @access  Private (Creator only)
+// -----------------------------------------------------
+// DESTROY ROOM (MANUAL END)
+// -----------------------------------------------------
 export const destroyRoom = async (req, res, next) => {
   try {
     const room = await Room.findById(req.params.id);
 
-    if (!room) {
-      return res.status(404).json({
-        success: false,
-        message: 'Room not found'
-      });
-    }
+    if (!room)
+      return res.status(404).json({ success: false, message: 'Room not found' });
 
-    // Only creator can destroy
-    if (room.creator.toString() !== req.user._id.toString()) {
+    if (room.creator.toString() !== req.user._id.toString())
       return res.status(403).json({
         success: false,
         message: 'Only the creator can end this room'
       });
-    }
 
-    // Update room status
     room.status = 'ended';
     room.endedAt = new Date();
     await room.save();
 
-    // Notify all participants
     const io = req.app.get('io');
     if (io) {
       io.to(room._id.toString()).emit('room_ended', {
@@ -340,27 +293,22 @@ export const destroyRoom = async (req, res, next) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Room ended successfully'
-    });
-  } catch (error) {
-    next(error);
+    res.status(200).json({ success: true, message: 'Room ended successfully' });
+  } catch (err) {
+    next(err);
   }
 };
 
-// @desc    Get room messages
-// @route   GET /api/rooms/:id/messages
-// @access  Private
+// -----------------------------------------------------
+// GET ROOM MESSAGES
+// -----------------------------------------------------
 export const getRoomMessages = async (req, res, next) => {
   try {
     const { limit = 50, before } = req.query;
 
     const query = { room: req.params.id };
 
-    if (before) {
-      query.createdAt = { $lt: new Date(before) };
-    }
+    if (before) query.createdAt = { $lt: new Date(before) };
 
     const messages = await Message.find(query)
       .populate('sender', 'username displayName avatar')
@@ -371,7 +319,7 @@ export const getRoomMessages = async (req, res, next) => {
       success: true,
       data: messages.reverse()
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
