@@ -187,7 +187,9 @@ Help improve UI, add new real-time features, or optimize performance.
 🔮 Upcoming Features
 1️⃣ SFU-Based Video Infrastructure (Scalable WebRTC Upgrade)
 
+
 CONNECT currently uses P2P WebRTC mesh.
+
 Next upgrade introduces an SFU (Selective Forwarding Unit):
 
 Route media via central server
