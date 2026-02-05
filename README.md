@@ -5,6 +5,7 @@ CONNECT is a real-time social collaboration platform where users can create live
 Perfect for coding sessions, guitar jams, trip planning, study groups, team meetings, or casual hangouts — CONNECT makes real-time interaction fast, fluid, and beautifully simple.
 
 🚀 What Makes CONNECT Special
+
 🏠 Create Live Rooms Instantly
 
 Launch lightweight, temporary rooms in seconds.
@@ -131,31 +132,47 @@ Mark-as-read endpoint
 Clean sync with Redux & UI
 
 📦 Installation & Setup
+
 📁 Clone the Repository
+
 git clone https://github.com/yourusername/connect.git
+
 cd connect
 
+
 🖥️ Backend Setup (/server)
+
 cd server
+
 npm install
+
 npm start
 
 Backend .env
+
 MONGO_URI=YOUR_URI
+
 JWT_SECRET=YOUR_JWT_SECRET
+
 CLIENT_URL=http://localhost:5173
 
 💻 Frontend Setup (/client)
+
 cd client
+
 npm install
+
 npm run dev
 
 Frontend .env
+
 VITE_API_URL=http://localhost:5000
+
 VITE_SOCKET_URL=http://localhost:5000
 
 
 📂 Project Structure
+
 CONNECT/
  ├── client/    
  └── server/
