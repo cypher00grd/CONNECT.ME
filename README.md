@@ -1,4 +1,4 @@
-CONNECT — Real-Time Rooms, Interaction, Calls & Community
+🚀 CONNECT — Real-Time Rooms, Interaction, Calls & Community
 
 CONNECT is a real-time social collaboration platform where users can create live rooms, invite followers, chat instantly, launch multi-user WebRTC calls, and even set rooms to auto-delete once the session ends.
 
@@ -49,6 +49,7 @@ Enable auto-delete to remove rooms from the database once you’re done.
 Perfect for temporary or private meetups.
 
 🛠️ Feature Breakdown
+
 🔐 Authentication Layer
 
 JWT-based authentication
