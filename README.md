@@ -1,138 +1,151 @@
- CONNECT — Real-Time Rooms, interact , Calls & Community
+CONNECT — Real-Time Rooms, Interaction, Calls & Community
 
-CONNECT is a real-time social collaboration platform where users can create live rooms, invite followers, interact, launch multi-user WebRTC video calls, and even let rooms auto-delete when the session ends.
-Perfect for  coding sessions, trip planning, study groups, team meetings, or chill hangouts — CONNECT makes real-time interaction fast, fluid, and beautifully simple.
+CONNECT is a real-time social collaboration platform where users can create live rooms, invite followers, chat instantly, launch multi-user WebRTC calls, and even set rooms to auto-delete once the session ends.
 
- What Makes CONNECT Special :
- Create Live Rooms Instantly
+Perfect for coding sessions, guitar jams, trip planning, study groups, team meetings, or casual hangouts — CONNECT makes real-time interaction fast, fluid, and beautifully simple.
 
-Launch temporary real-time rooms in seconds.
-Pick a category → invite your followers → Text or start a video call → room auto-cleans afterward.
+🚀 What Makes CONNECT Special
+🏠 Create Live Rooms Instantly
 
- Follower-Based Community System
+Launch lightweight, temporary rooms in seconds.
+Pick a category → invite followers → chat or start a video call → let it auto-clean afterward.
 
-Your followers get instant notifications when you start a room.
-They can join your live session or you can join theirs.
-A natural way to build small communities.
+👥 Follower-Based Micro Communities
 
- Ultra-Fast Real-Time Chat
+Followers get instant notifications when you start a room.
+Join each other’s live spaces effortlessly.
 
-Instant messaging with reactions, typing indicators, and message history (with pagination).
-Feels like a lightweight Discord/Instagram Rooms hybrid.
+⚡ Ultra-Fast Real-Time Chat
 
- Seamless WebRTC Video Calls
+Instant messages
 
-Turn any room into a multi-person video session:
-Toggle audio/video, stable peer connections, clean UI for local & remote streams.
-
- Live Notifications
-
-Room invites, follows, video call invites, new messages — all pushed instantly.
-
- Auto-Deleting Rooms
-
-Rooms can automatically disappear from the database when you're finished.
-Perfect for temporary meetups, planning sessions, private discussions.
-
- Feature Breakdown
- Authentication Layer 
-
-JWT authentication
-
-Secure protected routes
-
-Persistent session state (localStorage sync)
-
-Automatic socket re-connection after login
-
-Socket handshake authenticated using token
-
- Users Module (REST + WebSocket) 
-
-Server-side user search
-
-User profile fetching
-
-Follow/Unfollow with optimized DB updates
-
-Suggested users endpoint
-
-Real-time follow notifications via Socket.IO
-
-Profile sync across client state
-
- Rooms Module (Dynamic Real-Time Spaces)
-
-Create, join, leave, end rooms
-
-Optional auto-delete flag stored in DB
-
-Track active participants
-
-Broadcasted room lifecycle events
-
-Global "Feed" + personalized "My Rooms"
-
-Clean room state & participant management
-
- Messaging System
-
-Real-time message delivery via Socket.IO
-
-Reactions (emoji events)
+Emoji reactions
 
 Typing indicators
 
-Pagination for older messages (API + params)
+Message history (with pagination)
+Feels like a blend of Discord channels + Instagram live rooms.
+
+🎥 Seamless WebRTC Video Calls
+
+Turn any room into a multi-person video hangout:
+
+Join/leave anytime
+
+Toggle audio/video
+
+Stable multi-peer WebRTC connection
+
+Clean UI for local + remote streams
+
+🔔 Live Notifications
+
+Room invites, follows, call invites, and new messages — all pushed instantly.
+
+🧹 Auto-Deleting Rooms
+
+Enable auto-delete to remove rooms from the database once you’re done.
+Perfect for temporary or private meetups.
+
+🛠️ Feature Breakdown
+🔐 Authentication Layer
+
+JWT-based authentication
+
+Protected API routes
+
+Persistent session (localStorage sync)
+
+Auto socket reconnect after login
+
+Secure token-based socket handshake
+
+👤 Users Module (REST + WebSocket)
+
+User search (server-side)
+
+Profile fetching
+
+Follow/Unfollow with efficient DB updates
+
+Suggested users endpoint
+
+Real-time follow notifications
+
+Profile state syncing in Redux
+
+📡 Rooms Module (Dynamic Real-Time Spaces)
+
+Create, join, leave, end rooms
+
+Optional auto-delete flag
+
+Track active participants
+
+Global room feed + “My Rooms”
+
+Full room lifecycle broadcasting
+
+Clean room + participant state management
+
+💬 Messaging System
+
+Real-time messages via Socket.IO
+
+Emoji reactions
+
+Typing indicators
+
+Paginated message loading
 
 Deduplication & state consistency
 
- WebRTC Video Call Module
+🎥 WebRTC Video Calls
 
 Local & remote media stream management
 
-ICE candidates exchange through Socket.IO
+Offer/Answer negotiation via WebSockets
 
-Offer/Answer negotiation
+ICE candidate exchange
 
-Auto-manage peer connections
+Auto-manage multiple peer connections
 
-Join/leave without breaking the call
+Join/Leave without breaking the entire call
 
-Audio/Video toggle
+Audio/Video toggles
 
-Multi-participant handling
+Works seamlessly with room flow
 
-Notifications Module
+🔔 Notifications Module
 
 Persistent backend notifications
 
-Real-time push via WebSocket
+Real-time push via Socket.IO
 
-Video call invite storage
+Video call invite tracking
 
 Unread counter
 
 Mark-as-read endpoint
 
-Notification → Redux → UI sync
+Clean sync with Redux & UI
 
- Installation & Setup
- Clone the Repository
+📦 Installation & Setup
+📁 Clone the Repository
 git clone https://github.com/yourusername/connect.git
 cd connect
 
- Backend Setup (/server)
+🖥️ Backend Setup (/server)
 cd server
 npm install
 npm start
 
 Backend .env
-MONGO_URI= YOUR_URI
-JWT_SECRET= YOUR_JWT_SECRET
+MONGO_URI=YOUR_URI
+JWT_SECRET=YOUR_JWT_SECRET
 CLIENT_URL=http://localhost:5173
 
- Frontend Setup (/client)
+💻 Frontend Setup (/client)
 cd client
 npm install
 npm run dev
@@ -141,45 +154,46 @@ Frontend .env
 VITE_API_URL=http://localhost:5000
 VITE_SOCKET_URL=http://localhost:5000
 
- Project Structure
+📂 Project Structure
 CONNECT/
  ├── client/    
- └── server/    
-
+ └── server/
 
 🤝 Contributing
 
-Pull requests and issues are welcome.
-Improve UI, add new real-time features, optimize performance—everything helps.
+Pull requests and issues are welcome!
+Help improve UI, add new real-time features, or optimize performance.
 
-Upcoming Features
+🔮 Upcoming Features
 1️⃣ SFU-Based Video Infrastructure (Scalable WebRTC Upgrade)
 
-Currently, CONNECT uses pure peer-to-peer WebRTC.
-Next upgrade brings SFU (Selective Forwarding Unit) support:
+CONNECT currently uses P2P WebRTC mesh.
+Next upgrade introduces an SFU (Selective Forwarding Unit):
 
-Media routing via central SFU server
+Route media via central server
 
-Lower bandwidth usage (1 upstream → many downstream)
+1 upstream → many downstream
 
-Better performance for 5–50 participants
+Supports 5–50+ participants
 
 Adaptive quality control
 
-Automatic layer switching (Simulcast / SVC)
+Simulcast/SVC support
 
-Eliminates P2P mesh limitations
+Removes heavy peer mesh limits
 
-This transforms CONNECT from small group calls into large, stable, low-latency live sessions.
+Benefit:
+Transforms CONNECT into a large-group, low-latency live communication platform.
 
 2️⃣ Advanced Suggested Users Algorithm
 
-We are enhancing the user recommendation engine using:
+A smarter, graph-driven recommendation engine:
 
-Graph-based proximity scoring (followers-of-followers)
+Followers-of-followers scoring
 
-Interest-based matching (room categories, behaviors)
+Interest-based matching (room categories, behavior)
 
-Mutual connections weighting
+Mutual connection weighting
 
-This will make follower suggestions more accurate, personalized, and contextual
+Benefit:
+More accurate, contextual, and engaging user discovery.
