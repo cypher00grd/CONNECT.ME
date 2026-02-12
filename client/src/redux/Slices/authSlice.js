@@ -2,13 +2,39 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import { authAPI } from "../../services/api";
 import socketService from "../../services/socket";
 
-// Load from storage
-const storedUser = JSON.parse(localStorage.getItem("user"));
-const storedToken = localStorage.getItem("token");
+// SAFE LOAD FROM LOCAL STORAGE
+// --------------------------------------
+const loadUserFromStorage = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
+      return JSON.parse(storedUser);
+    }
+    return null;
+  } catch (error) {
+    console.error("Error parsing user from localStorage:", error);
+    localStorage.removeItem("user");
+    return null;
+  }
+};
+
+const loadTokenFromStorage = () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (token && token !== "undefined" && token !== "null") {
+      return token;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error loading token from localStorage:", error);
+    localStorage.removeItem("token");
+    return null;
+  }
+};
 
 const initialState = {
-  user: storedUser || null,
-  token: storedToken || null,
+  user: loadUserFromStorage() || null,
+  token: loadTokenFromStorage() || null,
   isLoading: false,
   isSuccess: false,
   isError: false,
@@ -155,43 +181,147 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    reset: (s) => {
-      s.isLoading = false;
-      s.isSuccess = false;
-      s.isError = false;
-      s.message = "";
+    // Reset flags
+    reset: (state) => {
+      state.isLoading = false;
+      state.isSuccess = false;
+      state.isError = false;
+      state.message = "";
+    },
+
+    // Update entire following array
+    updateUserFollowing: (state, action) => {
+      if (state.user) {
+        state.user.following = action.payload;
+        localStorage.setItem("user", JSON.stringify(state.user));
+      }
+    },
+
+    // Add a user ID to following list
+    addToFollowing: (state, action) => {
+      if (state.user) {
+        const userId = action.payload;
+        if (!state.user.following) {
+          state.user.following = [];
+        }
+        if (!state.user.following.includes(userId)) {
+          state.user.following.push(userId);
+          localStorage.setItem("user", JSON.stringify(state.user));
+        }
+      }
+    },
+
+    // Remove a user ID from following list
+    removeFromFollowing: (state, action) => {
+      if (state.user && state.user.following) {
+        const userId = action.payload;
+        state.user.following = state.user.following.filter(
+          (id) => id !== userId
+        );
+        localStorage.setItem("user", JSON.stringify(state.user));
+      }
+    },
+
+    // Update user data directly
+    setUser: (state, action) => {
+      state.user = action.payload;
+      localStorage.setItem("user", JSON.stringify(action.payload));
     },
   },
-  extraReducers: (b) => {
-    b.addCase(signup.fulfilled, (s, a) => {
-      s.isLoading = false;
-      s.isSuccess = true;
-      s.user = a.payload.user;
-      s.token = a.payload.token;
-    })
-      .addCase(login.fulfilled, (s, a) => {
-        s.isLoading = false;
-        s.isSuccess = true;
-        s.user = a.payload.user;
-        s.token = a.payload.token;
+
+  extraReducers: (builder) => {
+    builder
+      // SIGNUP
+      .addCase(signup.pending, (state) => {
+        state.isLoading = true;
+        state.isError = false;
+        state.message = "";
       })
-      .addCase(updateProfile.fulfilled, (s, a) => {
-        s.user = a.payload;
+      .addCase(signup.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
       })
-      .addCase(getMe.fulfilled, (s, a) => {
-        s.user = a.payload;
+      .addCase(signup.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+        state.user = null;
+        state.token = null;
       })
-      .addCase(logout.fulfilled, (s) => {
-        s.user = null;
-        s.token = null;
+
+      // LOGIN
+      .addCase(login.pending, (state) => {
+        state.isLoading = true;
+        state.isError = false;
+        state.message = "";
       })
-      .addCase(initializeAuth.fulfilled, (s, a) => {
-        if (a.payload) {
-          s.user = a.payload;
+      .addCase(login.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isSuccess = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+      })
+      .addCase(login.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+        state.user = null;
+        state.token = null;
+      })
+
+      // GET ME
+      .addCase(getMe.fulfilled, (state, action) => {
+        state.user = { ...state.user, ...action.payload };
+      })
+
+      // UPDATE PROFILE
+      .addCase(updateProfile.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.user = action.payload;
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.isError = true;
+        state.message = action.payload;
+      })
+
+      // LOGOUT
+      .addCase(logout.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isSuccess = false;
+      })
+
+      // INITIALIZE
+      .addCase(initializeAuth.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(initializeAuth.fulfilled, (state, action) => {
+        state.isLoading = false;
+        if (action.payload) {
+          state.user = action.payload;
         }
+      })
+      .addCase(initializeAuth.rejected, (state) => {
+        state.isLoading = false;
+        state.user = null;
+        state.token = null;
       });
   },
 });
 
-export const { reset } = authSlice.actions;
+// Export actions
+export const {
+  reset,
+  updateUserFollowing,
+  addToFollowing,
+  removeFromFollowing,
+  setUser,
+} = authSlice.actions;
+
 export default authSlice.reducer;

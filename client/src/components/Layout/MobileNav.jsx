@@ -20,7 +20,7 @@ const MobileNav = ({ onCreateRoom }) => {
       { icon: Compass, label: 'Explore', path: '/explore' },
       { icon: Plus, label: 'Create', action: handleCreate, isAction: true },
       { icon: Bell, label: 'Alerts', path: '/notifications', badge: unreadCount },
-      { icon: User, label: 'Profile', path: `/profile/${username}` },
+      { icon: User, label: 'Profile', path: `/${username}` },
     ],
     [handleCreate, unreadCount, username]
   );

@@ -19,7 +19,7 @@ router.get('/search', searchUsers);
 router.get('/suggestions', getSuggestions);
 router.get('/notifications', getNotifications);
 router.put('/notifications/read', markNotificationsRead);
-router.get('/profile/:username', getUserProfile);
+router.get('/:username', getUserProfile);
 router.post('/:id/follow', followUser);
 router.post('/:id/unfollow', unfollowUser);
 
