@@ -7,7 +7,7 @@ export const useAuth = () => {
     user,
     token,
     isLoading,
-    isAuthenticated: !!user && !!token,
+    isAuthenticated: !!user,
     userId: user?._id,
     username: user?.username,
   };

@@ -8,11 +8,15 @@ import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import Button from '../components/common/Button';
 import { Link } from 'react-router-dom';
+import { useSocket } from '../hooks/useSocket';
 
 const Home = () => {
   const dispatch = useDispatch();
   const { rooms, isLoading } = useSelector((state) => state.rooms);
   const { user } = useSelector((state) => state.auth);
+
+  // Mount global socket listeners so the feed auto-updates when followed users create a room
+  useSocket();
 
   useEffect(() => {
     dispatch(getFeedRooms());

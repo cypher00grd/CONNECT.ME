@@ -24,14 +24,19 @@ import { ToastContainer, useToast } from './components/common/Toast';
 
 function App() {
   const dispatch = useDispatch();
-  const { user, isLoading: authLoading } = useSelector((state) => state.auth);
+  const { user, initialized } = useSelector((state) => state.auth);
   const { mode } = useSelector((state) => state.theme);
   const toast = useToast();
 
-  // Initialize auth on app load
+  //  Initialize auth on app load
   useEffect(() => {
     dispatch(initializeAuth());
   }, [dispatch]);
+
+  // useEffect(() => {
+  //   if (!localStorage.getItem("token")) return; // ⬅ prevent double initialization
+  //   dispatch(initializeAuth());
+  // }, []);
 
   // Apply theme on mount
   useEffect(() => {
@@ -39,7 +44,7 @@ function App() {
     if (savedTheme) {
       dispatch(setTheme(savedTheme));
     }
-    
+
     // Apply dark class
     if (mode === 'dark') {
       document.documentElement.classList.add('dark');
@@ -48,9 +53,11 @@ function App() {
     }
   }, [mode, dispatch]);
 
-  if (authLoading) {
+  if (!initialized) {
     return <PageLoader />;
   }
+
+
 
   return (
     <BrowserRouter>

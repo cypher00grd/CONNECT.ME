@@ -17,21 +17,21 @@ export const setupHandlers = (socket, io) => {
   socket.on('join_room', async (roomId) => {
     try {
       const room = await Room.findById(roomId)
-      .populate('creator' , 'followers');
-      
+        .populate('creator', 'followers');
+
       if (!room || room.status !== 'active') {
         socket.emit('error', { message: 'Room not found or  ended' });
         return;
       }
-// validate followerr rule -- if followed thn only can join rrom
-     const isCreator = room.creator._id.toString() === socket.user._id.toString();
-    const isFollower = room.creator.followers.some(
-      f => f.toString() === socket.user._id.toString()
-    );
+      // validate followerr rule -- if followed thn only can join rrom
+      const isCreator = room.creator._id.toString() === socket.user._id.toString();
+      const isFollower = room.creator.followers.some(
+        f => f.toString() === socket.user._id.toString()
+      );
 
-    if (!isCreator && !isFollower) {
-      return socket.emit('error', { message: 'Follow creator to join room' });
-    }
+      if (!isCreator && !isFollower) {
+        return socket.emit('error', { message: 'Follow creator to join room' });
+      }
 
       socket.join(roomId);
       console.log(`${socket.user.username} joined room: ${roomId}`);
@@ -135,100 +135,106 @@ export const setupHandlers = (socket, io) => {
 
   // ============ VIDEO CALL EVENTS ============
 
-//   socket.on('video_offer', ({ roomId, offer, targetUserId }) => {
-//     io.to(targetUserId).emit('video_offer', {
-//       offer,
-//       from: socket.user._id,
-//       fromUser: {
-//         _id: socket.user._id,
-//         username: socket.user.username,
-//         displayName: socket.user.displayName
-//       }
-//     });
-//   });
+  //   socket.on('video_offer', ({ roomId, offer, targetUserId }) => {
+  //     io.to(targetUserId).emit('video_offer', {
+  //       offer,
+  //       from: socket.user._id,
+  //       fromUser: {
+  //         _id: socket.user._id,
+  //         username: socket.user.username,
+  //         displayName: socket.user.displayName
+  //       }
+  //     });
+  //   });
 
-//   socket.on('video_answer', ({ answer, targetUserId }) => {
-//     io.to(targetUserId).emit('video_answer', {
-//       answer,
-//       from: socket.user._id
-//     });
-//   });
+  //   socket.on('video_answer', ({ answer, targetUserId }) => {
+  //     io.to(targetUserId).emit('video_answer', {
+  //       answer,
+  //       from: socket.user._id
+  //     });
+  //   });
 
-//   socket.on('ice_candidate', ({ candidate, targetUserId }) => {
-//     io.to(targetUserId).emit('ice_candidate', {
-//       candidate,
-//       from: socket.user._id
-//     });
-//  });
+  //   socket.on('ice_candidate', ({ candidate, targetUserId }) => {
+  //     io.to(targetUserId).emit('ice_candidate', {
+  //       candidate,
+  //       from: socket.user._id
+  //     });
+  //  });
 
-// ============ VIDEO CALL EVENTS ============
-// implement the broadcast service inside the room -- using webRTC (mesh topology --n*(n+1))
-// later will implement SFU for  scalability.
+  // ============ VIDEO CALL EVENTS ============
+  // implement the broadcast service inside the room -- using webRTC (mesh topology --n*(n+1))
+  // later will implement SFU for  scalability.
 
-// 1. Someone turns ON camera -> notify everyone in the room
-socket.on('video_started', (roomId) => { 
-  console.log(`${socket.user.username} started video in room ${roomId}`);
+  // 1. Someone turns ON camera -> notify everyone in the room
+  socket.on('video_started', (roomId) => {
+    console.log(`${socket.user.username} started video in room ${roomId}`);
 
-  if (!socket.rooms.has(roomId)) {
-    return socket.emit('error', { message: 'Join room first' });
-  }
+    if (!socket.rooms.has(roomId)) {
+      return socket.emit('error', { message: 'Join room first' });
+    }
 
-  socket.to(roomId).emit('video_started', {
-    userId: socket.user._id,
-    username: socket.user.username,
-    displayName: socket.user.displayName,
-    avatar: socket.user.avatar
+    socket.to(roomId).emit('video_started', {
+      userId: socket.user._id,
+      username: socket.user.username,
+      displayName: socket.user.displayName,
+      avatar: socket.user.avatar
+    });
   });
-});
 
-// 2. User joins video call (not the room)
-socket.on('join_video_call', (roomId) => {
-  console.log(`${socket.user.username} joined VIDEO CALL in room ${roomId}`);
+  // 2. User joins video call (not the room)
+  socket.on('join_video_call', (roomId) => {
+    console.log(`${socket.user.username} joined VIDEO CALL in room ${roomId}`);
 
-  socket.join(`${roomId}-video`);
+    socket.join(`${roomId}-video`);
 
-  socket.to(`${roomId}-video`).emit('new_video_participant', {
-    userId: socket.user._id,
-    username: socket.user.username,
-    displayName: socket.user.displayName,
-    avatar: socket.user.avatar
+    socket.to(`${roomId}-video`).emit('new_video_participant', {
+      userId: socket.user._id,
+      username: socket.user.username,
+      displayName: socket.user.displayName,
+      avatar: socket.user.avatar
+    });
   });
-});
 
-// 3. WebRTC Offer -> send to all video participants
-socket.on('video_offer', ({ roomId, offer }) => {
-  socket.to(`${roomId}-video`).emit('video_offer', {
-    offer,
-    from: socket.user._id
+  // 3. WebRTC Offer -> send to specific user
+  socket.on('video_offer', ({ roomId, offer, targetUserId }) => {
+    if (targetUserId) {
+      socket.to(targetUserId).emit('video_offer', {
+        offer,
+        from: socket.user._id
+      });
+    }
   });
-});
 
-// 4. WebRTC Answer -> send to all video participants
-socket.on('video_answer', ({ roomId, answer }) => {
-  socket.to(`${roomId}-video`).emit('video_answer', {
-    answer,
-    from: socket.user._id
+  // 4. WebRTC Answer -> send to specific user
+  socket.on('video_answer', ({ roomId, answer, targetUserId }) => {
+    if (targetUserId) {
+      socket.to(targetUserId).emit('video_answer', {
+        answer,
+        from: socket.user._id
+      });
+    }
   });
-});
 
-// 5. ICE Candidate -> send to all video participants
-socket.on('ice_candidate', ({ roomId, candidate }) => {
-  socket.to(`${roomId}-video`).emit('ice_candidate', {
-    candidate,
-    from: socket.user._id
+  // 5. ICE Candidate -> send to specific user
+  socket.on('ice_candidate', ({ roomId, candidate, targetUserId }) => {
+    if (targetUserId) {
+      socket.to(targetUserId).emit('ice_candidate', {
+        candidate,
+        from: socket.user._id
+      });
+    }
   });
-});
 
-// 6. User LEAVES the video call
-socket.on('leave_video_call', (roomId) => {
-  console.log(`${socket.user.username} left VIDEO CALL: ${roomId}`);
+  // 6. User LEAVES the video call
+  socket.on('leave_video_call', (roomId) => {
+    console.log(`${socket.user.username} left VIDEO CALL: ${roomId}`);
 
-  socket.leave(`${roomId}-video`);
+    socket.leave(`${roomId}-video`);
 
-  socket.to(`${roomId}-video`).emit('video_participant_left', {
-    userId: socket.user._id
+    socket.to(`${roomId}-video`).emit('video_participant_left', {
+      userId: socket.user._id
+    });
   });
-});
 
 
 

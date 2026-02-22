@@ -23,46 +23,40 @@ const SignupForm = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (isSuccess) {
-      navigate('/');
-    }
-    
-    return () => {
-      dispatch(reset());
-    };
-  }, [isSuccess, navigate, dispatch]);
+    dispatch(reset());
+  }, [dispatch]);
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.displayName.trim()) {
       newErrors.displayName = 'Name is required';
     } else if (formData.displayName.length < 2) {
       newErrors.displayName = 'Name must be at least 2 characters';
     }
-    
+
     if (!formData.username) {
       newErrors.username = 'Username is required';
     } else if (!isValidUsername(formData.username)) {
       newErrors.username = 'Username must be 3-20 characters (letters, numbers, underscores)';
     }
-    
+
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!isValidEmail(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
-    
+
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -70,7 +64,7 @@ const SignupForm = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
@@ -78,7 +72,7 @@ const SignupForm = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       const { confirmPassword, ...signupData } = formData;
       dispatch(signup(signupData));

@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { MicOff, VideoOff } from 'lucide-react';
 import Avatar from '../common/Avatar';
 
-const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff }) => {
+const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff, styleClass }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -12,7 +12,7 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff }) => {
   }, [stream]);
 
   return (
-    <div className="relative bg-dark-800 rounded-2xl overflow-hidden aspect-video">
+    <div className={`relative bg-dark-800 rounded-2xl overflow-hidden aspect-video shadow-lg ${styleClass} transition-all duration-300`}>
       {stream && !isVideoOff ? (
         <video
           ref={videoRef}
@@ -34,18 +34,18 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff }) => {
       {/* User Info Overlay */}
       <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
         <div className="flex items-center justify-between">
-          <span className="text-white text-sm font-medium">
+          <span className="text-white text-sm font-medium drop-shadow-md">
             {isLocal ? 'You' : user?.displayName}
           </span>
           <div className="flex items-center gap-2">
             {isMuted && (
-              <div className="p-1 bg-red-500 rounded-full">
-                <MicOff size={12} className="text-white" />
+              <div className="p-1.5 bg-red-500 rounded-full shadow-sm">
+                <MicOff size={14} className="text-white" />
               </div>
             )}
             {isVideoOff && (
-              <div className="p-1 bg-red-500 rounded-full">
-                <VideoOff size={12} className="text-white" />
+              <div className="p-1.5 bg-red-500 rounded-full shadow-sm">
+                <VideoOff size={14} className="text-white" />
               </div>
             )}
           </div>
@@ -54,7 +54,7 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff }) => {
 
       {/* Local indicator */}
       {isLocal && (
-        <div className="absolute top-3 right-3 px-2 py-1 bg-primary-500 rounded-full text-white text-xs">
+        <div className="absolute top-3 right-3 px-2 py-1 bg-primary-500 rounded-full text-white text-xs shadow-md">
           You
         </div>
       )}
@@ -65,17 +65,23 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff }) => {
 const VideoGrid = ({ localStream, remoteStreams, localUser, participants, isAudioEnabled, isVideoEnabled }) => {
   const totalParticipants = Object.keys(remoteStreams).length + 1;
 
-  // Calculate grid columns based on participant count
-  const getGridCols = () => {
-    if (totalParticipants === 1) return 'grid-cols-1';
-    if (totalParticipants === 2) return 'grid-cols-1 sm:grid-cols-2';
-    if (totalParticipants <= 4) return 'grid-cols-2';
-    if (totalParticipants <= 6) return 'grid-cols-2 sm:grid-cols-3';
-    return 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+  // Calculate the ideal width for each tile to fill up the flex container based on participant count
+  const getTileWidth = () => {
+    if (totalParticipants === 1) return 'w-full max-w-5xl';
+    // 2 people: Side by side (50% each minus flex gap)
+    if (totalParticipants === 2) return 'w-[calc(50%-0.5rem)]';
+    // 3 or 4 people: 2 columns (50% each minus flex gap)
+    if (totalParticipants <= 4) return 'w-[calc(50%-0.5rem)]';
+    // 5 or 6 people: 3 columns (33.33% each minus flex gap)
+    if (totalParticipants <= 6) return 'w-[calc(33.333%-0.67rem)]';
+    // 7 or more people: 4 columns or more...
+    return 'w-[calc(25%-0.75rem)]';
   };
 
+  const tileClass = getTileWidth();
+
   return (
-    <div className={`grid ${getGridCols()} gap-4 p-4 h-full`}>
+    <div className="flex flex-wrap place-content-center items-center gap-2 p-2 h-full w-full max-h-screen overflow-hidden">
       {/* Local Video */}
       <VideoTile
         stream={localStream}
@@ -83,17 +89,19 @@ const VideoGrid = ({ localStream, remoteStreams, localUser, participants, isAudi
         isLocal={true}
         isMuted={!isAudioEnabled}
         isVideoOff={!isVideoEnabled}
+        styleClass={tileClass}
       />
 
       {/* Remote Videos */}
-      {Object.entries(remoteStreams).map(([oderId, stream]) => {
-        const participant = participants.find((p) => p._id === oderId);
+      {Object.entries(remoteStreams).map(([participantId, stream]) => {
+        const participant = participants.find((p) => p._id === participantId);
         return (
           <VideoTile
-            key={userId}
+            key={participantId}
             stream={stream}
             user={participant}
             isLocal={false}
+            styleClass={tileClass}
           />
         );
       })}

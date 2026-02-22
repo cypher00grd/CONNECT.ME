@@ -4,15 +4,17 @@ import { Send, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import MessageItem from './MessageItem';
 import Reactions from './Reactions';
+import EmojiPicker from 'emoji-picker-react';
 import useSocket from '../../hooks/useSocket';
 import { debounce } from '../../utils/helpers';
 
 const Chat = ({ roomId }) => {
   const { messages, typingUsers } = useSelector((state) => state.rooms);
   const { sendMessage, startTyping, stopTyping } = useSocket(roomId);
-  
+
   const [message, setMessage] = useState('');
   const [showReactions, setShowReactions] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -41,7 +43,7 @@ const Chat = ({ roomId }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (message.trim()) {
       sendMessage(message.trim());
       setMessage('');
@@ -65,6 +67,10 @@ const Chat = ({ roomId }) => {
     return currentMessage.sender?._id !== previousMessage.sender?._id;
   };
 
+  const onEmojiClick = (emojiObject) => {
+    setMessage((prevMsg) => prevMsg + emojiObject.emoji);
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages Container */}
@@ -83,7 +89,7 @@ const Chat = ({ roomId }) => {
             />
           ))
         )}
-        
+
         {/* Typing Indicator */}
         <AnimatePresence>
           {typingUsers.length > 0 && (
@@ -107,7 +113,7 @@ const Chat = ({ roomId }) => {
             </motion.div>
           )}
         </AnimatePresence>
-        
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -122,16 +128,34 @@ const Chat = ({ roomId }) => {
       </AnimatePresence>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-gray-100 dark:border-dark-700">
+      <div className="p-4 border-t border-gray-100 dark:border-dark-700 relative">
+        {/* Emoji Picker Popup */}
+        <AnimatePresence>
+          {showEmojiPicker && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className="absolute bottom-20 left-4 z-50 shadow-2xl"
+            >
+              <EmojiPicker
+                onEmojiClick={onEmojiClick}
+                theme="dark"
+                lazyLoadEmojis={true}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <form onSubmit={handleSubmit} className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowReactions(!showReactions)}
+            onClick={() => setShowEmojiPicker((prev) => !prev)}
             className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-full transition-colors"
           >
             <Smile size={22} />
           </button>
-          
+
           <input
             ref={inputRef}
             type="text"
@@ -141,7 +165,7 @@ const Chat = ({ roomId }) => {
             placeholder="Type a message..."
             className="flex-1 px-4 py-2.5 bg-gray-100 dark:bg-dark-700 rounded-full text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
           />
-          
+
           <motion.button
             type="submit"
             disabled={!message.trim()}

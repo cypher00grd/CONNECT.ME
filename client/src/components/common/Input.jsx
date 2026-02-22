@@ -41,9 +41,9 @@ const Input = forwardRef(
             type={isPassword && showPassword ? "text" : type}
             className={`
               input-field
-              ${leftIcon ? "pl-10" : ""}
-              ${(rightIcon || isPassword) ? "pr-10" : ""}
-              ${error ? "border-red-500 ring-red-500 focus:ring-red-500" : ""}
+              ${leftIcon ? "!pl-11" : ""}
+              ${(rightIcon || isPassword) ? "!pr-11" : ""}
+              ${error ? "!border-red-500 !ring-red-500 focus:!ring-red-500" : ""}
               ${className}
             `}
             {...props}
@@ -71,9 +71,8 @@ const Input = forwardRef(
         {/* Helper or error text */}
         {(error || helperText) && (
           <p
-            className={`mt-1.5 text-sm ${
-              error ? "text-red-500" : "text-gray-500 dark:text-gray-400"
-            }`}
+            className={`mt-1.5 text-sm ${error ? "text-red-500" : "text-gray-500 dark:text-gray-400"
+              }`}
           >
             {error || helperText}
           </p>

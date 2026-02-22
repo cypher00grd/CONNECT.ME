@@ -188,7 +188,7 @@ const roomSlice = createSlice({
           (p) => (p.user?._id || p.user) === user._id
         );
         if (!exists) {
-          state.currentRoom.participants.push({ user, joinedAt: new Date() });
+          state.currentRoom.participants.push({ user, joinedAt: new Date().toISOString() });
         }
       }
     },
@@ -221,8 +221,12 @@ const roomSlice = createSlice({
       }
     },
     removeVideoCallParticipant: (state, action) => {
+      // Robustly match _id or nested user._id to filter out disconnected users
       state.videoCallParticipants = state.videoCallParticipants.filter(
-        (p) => p._id !== action.payload
+        (p) => {
+          const id = p._id || p.userId || p.user?._id;
+          return id !== action.payload;
+        }
       );
     },
     clearVideoCall: (state) => {

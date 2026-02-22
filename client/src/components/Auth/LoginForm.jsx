@@ -10,7 +10,7 @@ import Button from '../common/Button';
 const LoginForm = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isLoading, isError, isSuccess, message } = useSelector((state) => state.auth);
+  const { isLoading, isError, isSuccess, message, user } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -19,28 +19,22 @@ const LoginForm = () => {
   const [errors, setErrors] = useState({});
 
   useEffect(() => {
-    if (isSuccess) {
-      navigate('/');
-    }
-    
-    return () => {
-      dispatch(reset());
-    };
-  }, [isSuccess, navigate, dispatch]);
+    dispatch(reset());
+  }, [dispatch]);
 
   const validateForm = () => {
     const newErrors = {};
-    
+
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Invalid email format';
     }
-    
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -48,7 +42,7 @@ const LoginForm = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Clear error when typing
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
@@ -57,7 +51,7 @@ const LoginForm = () => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     if (validateForm()) {
       dispatch(login(formData));
     }

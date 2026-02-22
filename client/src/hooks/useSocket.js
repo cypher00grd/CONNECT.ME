@@ -66,11 +66,11 @@ export const useSocket = (roomId = null) => {
     // ----- VIDEO CALL -----
     const handleVideoCallStart = (data) => {
       dispatch(setVideoCallActive(true));
-      dispatch(addVideoCallParticipant(data.user));
+      dispatch(addVideoCallParticipant({ ...data, _id: data.userId }));
     };
 
     const handleVideoCallJoin = (data) => {
-      dispatch(addVideoCallParticipant(data.user));
+      dispatch(addVideoCallParticipant({ ...data, _id: data.userId }));
     };
 
     const handleVideoCallLeave = (data) => {
@@ -86,9 +86,9 @@ export const useSocket = (roomId = null) => {
     socketService.on('typing_start', handleTypingStart);
     socketService.on('typing_stop', handleTypingStop);
 
-    socketService.on('video_call_start', handleVideoCallStart);
-    socketService.on('video_call_join', handleVideoCallJoin);
-    socketService.on('video_call_leave', handleVideoCallLeave);
+    socketService.on('video_started', handleVideoCallStart);
+    socketService.on('new_video_participant', handleVideoCallJoin);
+    socketService.on('video_participant_left', handleVideoCallLeave);
 
     return () => {
       socketService.leaveRoom(roomId);
@@ -101,9 +101,9 @@ export const useSocket = (roomId = null) => {
       socketService.off('typing_start', handleTypingStart);
       socketService.off('typing_stop', handleTypingStop);
 
-      socketService.off('video_call_start', handleVideoCallStart);
-      socketService.off('video_call_join', handleVideoCallJoin);
-      socketService.off('video_call_leave', handleVideoCallLeave);
+      socketService.off('video_started', handleVideoCallStart);
+      socketService.off('new_video_participant', handleVideoCallJoin);
+      socketService.off('video_participant_left', handleVideoCallLeave);
     };
   }, [roomId, dispatch]);
 

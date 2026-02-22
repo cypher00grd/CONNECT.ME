@@ -13,7 +13,7 @@ const VideoCallModal = ({ isOpen, onClose, roomId, videoCall }) => {
     remoteStreams,
     isAudioEnabled,
     isVideoEnabled,
-    videoCallParticipants,
+    videoCallParticipants = [],
     joinCall,
     leaveCall,
     toggleAudio,
@@ -72,7 +72,7 @@ const VideoCallModal = ({ isOpen, onClose, roomId, videoCall }) => {
               onToggleAudio={toggleAudio}
               onToggleVideo={toggleVideo}
               onLeave={handleClose}
-              participantCount={videoCallParticipants.length}
+              participantCount={videoCallParticipants?.length || 0}
             />
           </div>
         </motion.div>

@@ -32,7 +32,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      
+
       // Only redirect if not already on login page
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
@@ -54,6 +54,7 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   getMe: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
+  uploadAvatar: (data) => api.post('/upload', data, { headers: { 'Content-Type': 'multipart/form-data' } }),
 };
 
 export const userAPI = {

@@ -35,6 +35,7 @@ const loadTokenFromStorage = () => {
 const initialState = {
   user: loadUserFromStorage() || null,
   token: loadTokenFromStorage() || null,
+  initialized: false, // To track if initialization has completed
   isLoading: false,
   isSuccess: false,
   isError: false,
@@ -54,7 +55,7 @@ export const signup = createAsyncThunk(
         return thunkAPI.rejectWithValue(res.data.message);
       }
 
-      const { user, token } = res.data.data;
+      const { token, ...user } = res.data.data;
 
       // Save
       localStorage.setItem("user", JSON.stringify(user));
@@ -84,7 +85,7 @@ export const login = createAsyncThunk(
         return thunkAPI.rejectWithValue(res.data.message);
       }
 
-      const { user, token } = res.data.data;
+      const { token, ...user } = res.data.data;
 
       localStorage.setItem("user", JSON.stringify(user));
       localStorage.setItem("token", token);
@@ -303,12 +304,14 @@ const authSlice = createSlice({
       })
       .addCase(initializeAuth.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.initialized = true;
         if (action.payload) {
-          state.user = action.payload;
+          state.user = action.payload || null;
         }
       })
       .addCase(initializeAuth.rejected, (state) => {
         state.isLoading = false;
+        state.initialized = true;
         state.user = null;
         state.token = null;
       });

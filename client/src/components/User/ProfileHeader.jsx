@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { Calendar, Link as LinkIcon, MapPin, Edit2 } from 'lucide-react';
+import { Calendar, Link as LinkIcon, MapPin, Edit2, Camera, Loader2 } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
 import FollowButton from './FollowButton';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import { formatDate } from '../../utils/helpers';
+import { authAPI } from '../../services/api';
+import toast from 'react-hot-toast';
 
 const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [editForm, setEditForm] = useState({
     displayName: user?.displayName || '',
     bio: user?.bio || '',
@@ -19,6 +22,36 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
     setShowEditModal(false);
   };
 
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (e.g., max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('image', file);
+
+      const res = await authAPI.uploadAvatar(formData);
+
+      if (res.data?.success && res.data?.url) {
+        // Send the Cloudinary URL cleanly to the MongoDB Profile Object
+        onUpdateProfile({ avatar: res.data.url });
+        toast.success('Profile picture updated!');
+      }
+    } catch (error) {
+      console.error('Image upload failed:', error);
+      toast.error(error.response?.data?.message || 'Failed to upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <>
       {/* Cover Image */}
@@ -26,14 +59,33 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
 
       {/* Profile Info */}
       <div className="px-4 sm:px-6 pb-6">
-        {/* Avatar */}
-        <div className="relative -mt-16 sm:-mt-20 mb-4">
-          <Avatar
-            src={user?.avatar}
-            name={user?.displayName}
-            size="3xl"
-            className="ring-4 ring-white dark:ring-dark-900"
-          />
+        {/* Avatar Area */}
+        <div className="relative -mt-16 sm:-mt-20 mb-4 inline-block">
+          <div className="relative group">
+            <Avatar
+              src={user?.avatar}
+              name={user?.displayName}
+              size="3xl"
+              className={`ring-4 ring-white dark:ring-dark-900 ${isOwnProfile && !isUploading ? 'group-hover:opacity-75 transition-opacity' : ''}`}
+            />
+
+            {isOwnProfile && (
+              <label className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity">
+                <input
+                  type="file"
+                  accept="image/jpeg, image/png, image/webp"
+                  className="hidden"
+                  onChange={handleImageUpload}
+                  disabled={isUploading}
+                />
+                {isUploading ? (
+                  <Loader2 className="text-white animate-spin" size={28} />
+                ) : (
+                  <Camera className="text-white" size={28} />
+                )}
+              </label>
+            )}
+          </div>
         </div>
 
         {/* Name and Actions */}

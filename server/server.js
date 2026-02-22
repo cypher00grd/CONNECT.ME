@@ -8,6 +8,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { initializeSocket } from "./socket/index.js";
 import { startRoomCleanupJob } from "./utils/roomCleanup.js";
@@ -48,6 +49,7 @@ initializeSocket(io);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/rooms", roomRoutes);
+app.use("/api/upload", uploadRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
