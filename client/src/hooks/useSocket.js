@@ -123,12 +123,18 @@ export const useSocket = (roomId = null) => {
       dispatch(addVideoCallInvite(data));
     };
 
+    const handleAnnouncement = (data) => {
+      dispatch(addNotification(data));
+    };
+
     socketService.on('notification', handleNotification);
     socketService.on('video_call_invite', handleVideoCallInvite);
+    socketService.on('follower_announcement', handleAnnouncement);
 
     return () => {
       socketService.off('notification', handleNotification);
       socketService.off('video_call_invite', handleVideoCallInvite);
+      socketService.off('follower_announcement', handleAnnouncement);
     };
   }, [dispatch]);
 

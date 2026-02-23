@@ -65,10 +65,10 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
-                <span className="text-white font-bold text-xl">L</span>
+                <span className="text-white font-bold text-xl">C</span>
               </div>
               <span className="text-xl font-bold text-gradient hidden sm:block">
-                Linkly
+                Connect
               </span>
             </Link>
           </div>

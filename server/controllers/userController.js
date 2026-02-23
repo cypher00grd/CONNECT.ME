@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
 
@@ -254,6 +255,72 @@ export const getSuggestions = async (req, res, next) => {
       success: true,
       data: usersWithCount
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Broadcast a text announcement to all followers
+// @route   POST /api/users/notify-followers
+// @access  Private
+export const notifyFollowers = async (req, res, next) => {
+  try {
+    const { message } = req.body;
+
+    if (!message || message.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Broadcast message cannot be empty'
+      });
+    }
+
+    // Fetch the current user to get their followers list
+    const user = await User.findById(req.user._id).select('followers username displayName avatar');
+
+    if (!user.followers || user.followers.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'You have no followers to notify yet'
+      });
+    }
+
+    // Prepare bulky DB Insertion objects for all offline followers
+    const notificationsToInsert = user.followers.map(followerId => ({
+      recipient: followerId,
+      sender: user._id,
+      type: 'announcement',
+      message: message.trim()
+    }));
+
+    // Perform a single fast DB hit to save all announcements
+    await Notification.insertMany(notificationsToInsert);
+
+    // Get live socket instance
+    const io = req.app.get('io');
+    if (io) {
+      // Broadcast live event to all online followers via their private socket rooms
+      user.followers.forEach((followerId) => {
+        io.to(followerId.toString()).emit('follower_announcement', {
+          _id: new mongoose.Types.ObjectId(), // Generate temporary ID for frontend React key
+          type: 'announcement',
+          createdAt: new Date(),
+          isRead: false,
+          sender: {
+            _id: user._id,
+            username: user.username,
+            displayName: user.displayName,
+            avatar: user.avatar
+          },
+          message: message.trim()
+        });
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Announcement broadcasted to ${user.followers.length} followers`
+    });
+
   } catch (error) {
     next(error);
   }

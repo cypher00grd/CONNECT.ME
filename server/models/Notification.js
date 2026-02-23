@@ -14,7 +14,7 @@ const notificationSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['room_created', 'follow', 'room_invite', 'room_ended'],
+      enum: ['room_created', 'follow', 'room_invite', 'room_ended', 'announcement'],
       required: true
     },
     room: {

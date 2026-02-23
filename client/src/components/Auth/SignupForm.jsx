@@ -90,7 +90,7 @@ const SignupForm = () => {
           Create account
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Join Linkly and connect with others
+          Join Connect and interact with others
         </p>
       </div>
 

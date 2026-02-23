@@ -68,7 +68,7 @@ const LoginForm = () => {
           Welcome back
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Sign in to continue to Linkly
+          Sign in to continue to Connect
         </p>
       </div>
 

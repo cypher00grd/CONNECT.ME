@@ -65,6 +65,7 @@ export const userAPI = {
   unfollow: (userId) => api.post(`/users/${userId}/unfollow`),
   getNotifications: () => api.get('/users/notifications'),
   markNotificationsRead: () => api.put('/users/notifications/read'),
+  notifyFollowers: (data) => api.post('/users/notify-followers', data),
 };
 
 export const roomAPI = {

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { UserPlus, Radio, Video } from 'lucide-react';
+import { UserPlus, Radio, Video, Megaphone } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { formatRelativeTime } from '../../utils/helpers';
 
@@ -7,6 +7,7 @@ const icons = {
   follow: UserPlus,
   room_created: Radio,
   video_call: Video,
+  announcement: Megaphone,
 };
 
 const NotificationItem = ({ notification, onClick }) => {
@@ -15,7 +16,7 @@ const NotificationItem = ({ notification, onClick }) => {
 
   const getLink = () => {
     if (type === 'room_created' && room?._id) return `/room/${room._id}`;
-    if (type === 'follow' && sender?.username) return `/profile/${sender.username}`;
+    if ((type === 'follow' || type === 'announcement') && sender?.username) return `/profile/${sender.username}`;
     return '#';
   };
 
@@ -40,7 +41,7 @@ const NotificationItem = ({ notification, onClick }) => {
           className={`
             absolute -bottom-1 -right-1 w-6 h-6 
             rounded-full flex items-center justify-center 
-            ${type === 'follow' ? 'bg-primary-500' : 'bg-green-500'}
+            ${(type === 'follow' || type === 'announcement') ? 'bg-primary-500' : 'bg-green-500'}
           `}
         >
           <Icon size={12} className="text-white" />
@@ -54,6 +55,7 @@ const NotificationItem = ({ notification, onClick }) => {
           {type === 'follow' && 'started following you'}
           {type === 'room_created' && room?.title && `started a room: "${room.title}"`}
           {type === 'video_call' && 'invited you to a video call'}
+          {type === 'announcement' && notification.message && ` says: "${notification.message}"`}
         </p>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

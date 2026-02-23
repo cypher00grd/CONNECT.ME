@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Calendar, Link as LinkIcon, MapPin, Edit2, Camera, Loader2 } from 'lucide-react';
+import { Calendar, Link as LinkIcon, MapPin, Edit2, Camera, Loader2, Megaphone } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
 import FollowButton from './FollowButton';
 import Modal from '../common/Modal';
+import NotifyFollowersModal from './NotifyFollowersModal';
 import Input from '../common/Input';
 import { formatDate } from '../../utils/helpers';
 import { authAPI } from '../../services/api';
@@ -11,6 +12,7 @@ import toast from 'react-hot-toast';
 
 const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showNotifyModal, setShowNotifyModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editForm, setEditForm] = useState({
     displayName: user?.displayName || '',
@@ -100,13 +102,22 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
           </div>
 
           {isOwnProfile ? (
-            <Button
-              variant="secondary"
-              leftIcon={<Edit2 size={16} />}
-              onClick={() => setShowEditModal(true)}
-            >
-              Edit Profile
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="primary"
+                leftIcon={<Megaphone size={16} />}
+                onClick={() => setShowNotifyModal(true)}
+              >
+                Notify Followers
+              </Button>
+              <Button
+                variant="secondary"
+                leftIcon={<Edit2 size={16} />}
+                onClick={() => setShowEditModal(true)}
+              >
+                Edit Profile
+              </Button>
+            </div>
           ) : (
             <FollowButton
               userId={user?._id}
@@ -181,11 +192,17 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
           </div>
         </div>
       </Modal>
+
+      {/* Notify Followers Modal */}
+      <NotifyFollowersModal
+        isOpen={showNotifyModal}
+        onClose={() => setShowNotifyModal(false)}
+        followersCount={user?.followers?.length || 0}
+      />
     </>
   );
 };
 
 export default ProfileHeader;
-
 
 // no imp made
