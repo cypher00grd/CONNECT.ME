@@ -1,6 +1,7 @@
 import Message from '../models/Message.js';
 import Room from '../models/Room.js';
 import User from '../models/User.js';
+import Booking from '../models/Booking.js';
 
 export const setupHandlers = (socket, io) => {
   // Join personal room for notifications
@@ -23,14 +24,30 @@ export const setupHandlers = (socket, io) => {
         socket.emit('error', { message: 'Room not found or  ended' });
         return;
       }
-      // validate followerr rule -- if followed thn only can join rrom
+      // Split validation based on room type
       const isCreator = room.creator._id.toString() === socket.user._id.toString();
-      const isFollower = room.creator.followers.some(
-        f => f.toString() === socket.user._id.toString()
-      );
 
-      if (!isCreator && !isFollower) {
-        return socket.emit('error', { message: 'Follow creator to join room' });
+      if (room.type === 'live_event') {
+        if (!isCreator) {
+          const booking = await Booking.findOne({
+            user: socket.user._id,
+            room: roomId,
+            paymentStatus: 'paid'
+          });
+
+          if (!booking) {
+            return socket.emit('error', { message: 'You must purchase a ticket to join this live event.' });
+          }
+        }
+      } else {
+        // Standard room: validate follower rule
+        const isFollower = room.creator.followers.some(
+          f => f.toString() === socket.user._id.toString()
+        );
+
+        if (!isCreator && !isFollower) {
+          return socket.emit('error', { message: 'Follow creator to join room' });
+        }
       }
 
       socket.join(roomId);
@@ -182,7 +199,7 @@ export const setupHandlers = (socket, io) => {
   });
 
   // 2. User joins video call (not the room)
-  socket.on('join_video_call', (roomId) => {
+  socket.on('join_video_call', async (roomId) => {
     console.log(`${socket.user.username} joined VIDEO CALL in room ${roomId}`);
 
     socket.join(`${roomId}-video`);
@@ -193,6 +210,26 @@ export const setupHandlers = (socket, io) => {
       displayName: socket.user.displayName,
       avatar: socket.user.avatar
     });
+
+    // 🛡️ LATE JOINER FIX: Give the joining user the exhaustive current roster
+    // so their local WebRTC engine knows exactly who to send connection offers to!
+    try {
+      const sockets = await io.in(`${roomId}-video`).fetchSockets();
+      const existingParticipants = sockets
+        .filter(s => s.id !== socket.id) // excluding themselves
+        .map(s => s.user._id.toString());
+
+      socket.emit('video_call_roster', existingParticipants);
+
+      // Also fire 'video_started' retroactively just in case their Redux state missed the original broadcast
+      if (existingParticipants.length > 0) {
+        socket.emit('video_started', {
+          userId: existingParticipants[0] // fallback placeholder
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching video sockets:', err);
+    }
   });
 
   // 3. WebRTC Offer -> send to specific user

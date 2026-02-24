@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useSearchParams } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { useDispatch, useSelector } from 'react-redux';
 import { Radio, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -7,6 +8,7 @@ import { getUserProfile, clearViewedProfile } from '../redux/Slices/userSlice';
 import { updateProfile } from '../redux/Slices/authSlice';
 import ProfileHeader from '../components/User/ProfileHeader';
 import FollowersList from '../components/User/FollowersList';
+import ScheduledEventsList from '../components/User/ScheduledEventsList';
 import RoomCard from '../components/Room/RoomCard';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
@@ -19,15 +21,22 @@ const Profile = () => {
   const { viewedProfile, isLoading } = useSelector((state) => state.users);
   const [activeTab, setActiveTab] = useState('rooms');
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => {
     if (username) {
       dispatch(getUserProfile(username));
     }
 
+    if (searchParams.get('booking') === 'canceled') {
+      toast.error('Booking checkout discarded.');
+      setSearchParams({});
+    }
+
     return () => {
       dispatch(clearViewedProfile());
     };
-  }, [username, dispatch]);
+  }, [username, dispatch, searchParams, setSearchParams]);
 
   const handleUpdateProfile = async (data) => {
     await dispatch(updateProfile(data));
@@ -67,6 +76,15 @@ const Profile = () => {
           isOwnProfile={isOwnProfile}
           onUpdateProfile={handleUpdateProfile}
         />
+      </motion.div>
+
+      {/* Scheduled Events Section (Prominent) */}
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.1 }}
+      >
+        <ScheduledEventsList userId={viewedProfile._id} isOwnProfile={isOwnProfile} />
       </motion.div>
 
       {/* Tabs */}

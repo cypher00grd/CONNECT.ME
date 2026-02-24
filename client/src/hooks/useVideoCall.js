@@ -309,7 +309,7 @@ const ICE_SERVERS = {
   iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
 };
 
-export const useVideoCall = (roomId) => {
+export const useVideoCall = (roomId, isSpectator = false) => {
   const dispatch = useDispatch();
   const { user } = useSelector((s) => s.auth);
   const { videoCallParticipants } = useSelector((s) => s.rooms);
@@ -328,20 +328,27 @@ export const useVideoCall = (roomId) => {
   ============================ */
   const getLocalStream = async () => {
     if (localStream) return localStream;
+    // Broadcast Scaling Optimization: Drop constraints for Spectators completely.
+    if (isSpectator) return null;
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: true,
-      audio: true,
-    });
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
 
-    setLocalStream(stream);
-    localStreamRef.current = stream;
+      setLocalStream(stream);
+      localStreamRef.current = stream;
 
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+
+      return stream;
+    } catch (err) {
+      console.error('Mic/Cam error block mapping:', err);
+      return null;
     }
-
-    return stream;
   };
 
   /* ===========================
@@ -353,9 +360,15 @@ export const useVideoCall = (roomId) => {
     const stream = await getLocalStream();
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    stream.getTracks().forEach((track) => {
-      pc.addTrack(track, stream);
-    });
+    // If active track exist (Creator) bind outbound. Otherwise explicitly define inbound receive transceivers (Spectator/Asymmetric Pipeline).
+    if (stream) {
+      stream.getTracks().forEach((track) => {
+        pc.addTrack(track, stream);
+      });
+    } else if (isSpectator) {
+      pc.addTransceiver('video', { direction: 'recvonly' });
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+    }
 
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -396,25 +409,46 @@ export const useVideoCall = (roomId) => {
     dispatch(addVideoCallParticipant(user));
     socketService.joinVideoCall(roomId);
 
-    for (const p of videoCallParticipants) {
-      if (p._id !== user._id) {
-        const pc = await createPeerConnection(p._id);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-
-        socketService.sendVideoOffer(roomId, offer, p._id);
-      }
-    }
+    // WebRTC Signaling is now deferred until the server responds with 'video_call_roster'
   };
 
   /* ===========================
      SIGNALING
   ============================ */
   useEffect(() => {
+    const handleRoster = async (rosterUserIds) => {
+      console.log('Received active video roster:', rosterUserIds);
+      for (const targetUserId of rosterUserIds) {
+        if (targetUserId !== user?._id) {
+          const pc = await createPeerConnection(targetUserId);
+          const offer = await pc.createOffer(isSpectator ? {
+            offerToReceiveAudio: true,
+            offerToReceiveVideo: true
+          } : undefined);
+          await pc.setLocalDescription(offer);
+
+          socketService.sendVideoOffer(roomId, offer, targetUserId);
+        }
+      }
+    };
+
     const handleOffer = async ({ offer, from }) => {
       console.log('Received video offer from:', from);
       const pc = await createPeerConnection(from);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+
+      // Asymmetric Broadcast Fix: Always ensure our local broadcast tracks 
+      // are attached to the PeerConnection before answering their empty offer.
+      if (localStreamRef.current && !isSpectator) {
+        localStreamRef.current.getTracks().forEach(track => {
+          // Avoid adding duplicate tracks if createPeerConnection already caught them
+          const senders = pc.getSenders();
+          const hasTrack = senders.find(s => s.track && s.track.id === track.id);
+          if (!hasTrack) {
+            pc.addTrack(track, localStreamRef.current);
+          }
+        });
+      }
 
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -451,12 +485,14 @@ export const useVideoCall = (roomId) => {
       });
     };
 
+    socketService.on("video_call_roster", handleRoster);
     socketService.on("video_offer", handleOffer);
     socketService.on("video_answer", handleAnswer);
     socketService.on("ice_candidate", handleIce);
     socketService.on("video_participant_left", handleParticipantLeft);
 
     return () => {
+      socketService.off("video_call_roster", handleRoster);
       socketService.off("video_offer", handleOffer);
       socketService.off("video_answer", handleAnswer);
       socketService.off("ice_candidate", handleIce);

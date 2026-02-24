@@ -5,16 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion';
 import RoomHeader from './RoomHeader';
 import Chat from './Chat';
 import VideoCallModal from '../VideoCall/VideoCallModal';
+import VideoGrid from '../VideoCall/VideoGrid';
+import VideoControls from '../VideoCall/VideoControls';
 import { PageLoader } from '../common/Loader';
 import EmptyState from '../common/EmptyState';
 import Button from '../common/Button';
-import { 
-  getRoom, 
-  joinRoom, 
-  leaveRoom, 
-  endRoom, 
+import {
+  getRoom,
+  joinRoom,
+  leaveRoom,
+  endRoom,
   getRoomMessages,
-  clearCurrentRoom 
+  clearCurrentRoom
 } from '../../redux/Slices/roomSlice';
 import useAuth from '../../hooks/useAuth';
 import useSocket from '../../hooks/useSocket';
@@ -26,15 +28,15 @@ const RoomView = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { userId } = useAuth();
-  
-  const { 
-    currentRoom: room, 
-    isLoading, 
-    isError, 
+  const { userId, user } = useAuth();
+
+  const {
+    currentRoom: room,
+    isLoading,
+    isError,
     message,
     videoCallActive,
-    videoCallParticipants 
+    videoCallParticipants
   } = useSelector((state) => state.rooms);
 
   const [showVideoModal, setShowVideoModal] = useState(false);
@@ -44,7 +46,8 @@ const RoomView = () => {
   useSocket(roomId);
 
   // Video call hook
-  const videoCall = useVideoCall(roomId);
+  const isSpectator = room ? (!isRoomCreator(room, userId) && room.type === 'live_event') : false;
+  const videoCall = useVideoCall(roomId, isSpectator);
 
   // Fetch room data and join
   useEffect(() => {
@@ -62,8 +65,19 @@ const RoomView = () => {
   useEffect(() => {
     if (room && room.status === 'active' && !roomEnded) {
       dispatch(joinRoom(roomId));
+
+      // Auto-join video call for live events
+      if (room.type === 'live_event') {
+        // If Creator and call not active yet, initialize the room's WebRTC mesh.
+        // If spectator, bind to the existing stream.
+        if (isCreator && !videoCallActive) {
+          videoCall.startCall();
+        } else if (!isCreator) {
+          videoCall.joinCall();
+        }
+      }
     }
-  }, [room?._id]);
+  }, [room?._id, room?.status]);
 
   // Handle room ended
   useEffect(() => {
@@ -177,18 +191,60 @@ const RoomView = () => {
         )}
       </AnimatePresence>
 
-      {/* Chat Area */}
-      <div className="flex-1 overflow-hidden">
-        <Chat roomId={roomId} />
-      </div>
+      {/* Main Content Area */}
+      {room.type === 'live_event' ? (
+        <div className="flex-1 flex overflow-hidden">
+          {/* Broadcaster Video Panel (Theater Mode) */}
+          <div className="flex-[3] relative bg-black flex flex-col">
+            <div className="flex-1 min-h-0">
+              <VideoGrid
+                localStream={videoCall.localStream}
+                remoteStreams={videoCall.remoteStreams}
+                localUser={user}
+                participants={videoCallParticipants}
+                isAudioEnabled={videoCall.isAudioEnabled}
+                isVideoEnabled={videoCall.isVideoEnabled}
+                isSpectator={isSpectator}
+                isLiveEvent={true}
+              />
+            </div>
 
-      {/* Video Call Modal */}
-      <VideoCallModal
-        isOpen={showVideoModal}
-        onClose={() => setShowVideoModal(false)}
-        roomId={roomId}
-        videoCall={videoCall}
-      />
+            {/* Only show full controls for the Creator */}
+            {isCreator && (
+              <div className="h-20 shrink-0 border-t border-dark-800 bg-dark-950 flex items-center justify-center relative z-10">
+                <VideoControls
+                  isAudioEnabled={videoCall.isAudioEnabled}
+                  isVideoEnabled={videoCall.isVideoEnabled}
+                  onToggleAudio={videoCall.toggleAudio}
+                  onToggleVideo={videoCall.toggleVideo}
+                  onLeave={handleEnd}
+                  participantCount={videoCallParticipants?.length || 0}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Right Side Chat Sidebar */}
+          <div className="w-[350px] shrink-0 border-l border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-900 flex flex-col">
+            <Chat roomId={roomId} />
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Standard Room Chat Area */}
+          <div className="flex-1 overflow-hidden">
+            <Chat roomId={roomId} />
+          </div>
+
+          {/* Standard Room Video Call Modal */}
+          <VideoCallModal
+            isOpen={showVideoModal}
+            onClose={() => setShowVideoModal(false)}
+            roomId={roomId}
+            videoCall={videoCall}
+          />
+        </>
+      )}
     </div>
   );
 };

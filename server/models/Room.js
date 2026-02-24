@@ -25,6 +25,12 @@ const roomSchema = new mongoose.Schema(
       maxlength: 100
     },
 
+    type: {
+      type: String,
+      enum: ['standard', 'live_event'],
+      default: 'standard'
+    },
+
     description: {
       type: String,
       trim: true,
@@ -55,6 +61,16 @@ const roomSchema = new mongoose.Schema(
       required: true
     },
 
+    scheduledStartTime: {
+      type: Date,
+      default: null
+    },
+
+    entryFee: {
+      type: Number,
+      default: 0
+    },
+
     participants: [participantSchema],
 
     maxParticipants: {
@@ -71,7 +87,7 @@ const roomSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['active', 'ended'],
+      enum: ['scheduled', 'active', 'ended'],
       default: 'active'
     },
 

@@ -4,6 +4,7 @@ import Room from '../models/Room.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Notification from '../models/Notification.js';
+import Booking from '../models/Booking.js';
 
 // -----------------------------------------------------
 // CREATE ROOM
@@ -104,15 +105,120 @@ export const createRoom = async (req, res, next) => {
 };
 
 // -----------------------------------------------------
+// SCHEDULE LIVE EVENT
+// -----------------------------------------------------
+export const scheduleRoom = async (req, res, next) => {
+  try {
+    const { title, description, category, scheduledStartTime, entryFee } = req.body;
+
+    if (!title || !scheduledStartTime || entryFee === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: 'Title, scheduledStartTime, and entryFee are required'
+      });
+    }
+
+    const room = await Room.create({
+      title,
+      description: description || '',
+      category: category || 'live_event',
+      creator: req.user._id,
+      type: 'live_event',
+      status: 'scheduled',
+      scheduledStartTime: new Date(scheduledStartTime),
+      entryFee: Number(entryFee),
+      participants: [{ user: req.user._id }]
+    });
+
+    const populatedRoom = await Room.findById(room._id)
+      .populate('creator', 'username displayName avatar')
+      .populate('participants.user', 'username displayName avatar');
+
+    // Notify followers
+    const creator = await User.findById(req.user._id).populate('followers');
+
+    if (creator.followers.length > 0) {
+      const notifications = creator.followers.map((follower) => ({
+        recipient: follower._id,
+        sender: req.user._id,
+        type: 'announcement', // Using announcement type since we want it to go to inbox
+        room: room._id,
+        message: `${creator.displayName} scheduled a Live Event: "${title}". Book your ticket now!`
+      }));
+
+      await Notification.insertMany(notifications);
+
+      const io = req.app.get('io');
+      if (io) {
+        creator.followers.forEach((follower) => {
+          io.to(follower._id.toString()).emit('follower_announcement', {
+            type: 'announcement',
+            room: populatedRoom,
+            sender: {
+              _id: creator._id,
+              username: creator.username,
+              displayName: creator.displayName,
+              avatar: creator.avatar
+            },
+            message: `${creator.displayName} scheduled a Live Event: "${title}". Book your ticket now!`
+          });
+        });
+      }
+    }
+
+    res.status(201).json({ success: true, data: populatedRoom });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -----------------------------------------------------
+// START SCHEDULED EVENT
+// -----------------------------------------------------
+export const startEvent = async (req, res, next) => {
+  try {
+    const room = await Room.findById(req.params.id);
+
+    if (!room) {
+      return res.status(404).json({ success: false, message: 'Room not found' });
+    }
+
+    if (room.creator.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ success: false, message: 'Not authorized to start this event' });
+    }
+
+    if (room.status !== 'scheduled') {
+      return res.status(400).json({ success: false, message: 'Room is not scheduled' });
+    }
+
+    room.status = 'active';
+    await room.save();
+
+    const populatedRoom = await Room.findById(room._id)
+      .populate('creator', 'username displayName avatar')
+      .populate('participants.user', 'username displayName avatar');
+
+    res.status(200).json({ success: true, data: populatedRoom });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -----------------------------------------------------
 // FEED ROOMS
 // -----------------------------------------------------
 export const getFeedRooms = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id);
+    const userBookings = await Booking.find({ user: req.user._id, paymentStatus: 'paid' });
+    const bookedRoomIds = userBookings.map(b => b.room);
 
     const rooms = await Room.find({
-      creator: { $in: [...user.following, user._id] },
-      status: 'active'
+      $or: [
+        { creator: { $in: [...user.following, user._id] }, status: 'active' },
+        { _id: { $in: bookedRoomIds }, status: 'scheduled' },
+        { creator: user._id, status: 'scheduled' }
+      ]
     })
       .populate('creator', 'username displayName avatar')
       .populate('participants.user', 'username displayName avatar')
@@ -141,6 +247,42 @@ export const getMyRooms = async (req, res, next) => {
 };
 
 // -----------------------------------------------------
+// GET USER SCHEDULED EVENTS
+// -----------------------------------------------------
+export const getUserScheduledRooms = async (req, res, next) => {
+  try {
+    const rooms = await Room.find({ creator: req.params.userId, status: 'scheduled' })
+      .populate('creator', 'username displayName avatar')
+      .sort({ scheduledStartTime: 1 });
+
+    // Determine if the requesting user has booked each room
+    const roomsWithBookingStatus = await Promise.all(rooms.map(async (room) => {
+      let isBooked = false;
+      // The creator inherently has access
+      if (room.creator._id.toString() === req.user._id.toString()) {
+        isBooked = true;
+      } else {
+        const booking = await Booking.findOne({
+          user: req.user._id,
+          room: room._id,
+          paymentStatus: 'paid'
+        });
+        isBooked = !!booking;
+      }
+
+      return {
+        ...room.toObject(),
+        isBooked
+      };
+    }));
+
+    res.status(200).json({ success: true, data: roomsWithBookingStatus });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// -----------------------------------------------------
 // GET SINGLE ROOM
 // -----------------------------------------------------
 export const getRoom = async (req, res, next) => {
@@ -157,7 +299,23 @@ export const getRoom = async (req, res, next) => {
       (f) => f.toString() === req.user._id.toString()
     );
 
-    if (!isCreator && !isFollower)
+    // 🛡️ WebRTC ACCESS CONTROL: Live Events require explicit paid tickets
+    if (room.type === 'live_event' && !isCreator) {
+      const booking = await Booking.findOne({
+        user: req.user._id,
+        room: room._id,
+        paymentStatus: 'paid'
+      });
+
+      if (!booking) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must pre-book a ticket to view this live event'
+        });
+      }
+    }
+
+    if (!isCreator && !isFollower && room.type !== 'live_event')
       return res.status(403).json({
         success: false,
         message: 'You must follow this user to view this room'
@@ -187,11 +345,28 @@ export const joinRoom = async (req, res, next) => {
       });
 
     const isCreator = room.creator._id.toString() === req.user._id.toString();
+
+    // 🛡️ WebRTC ACCESS CONTROL: Live Events require explicit paid tickets
+    if (room.type === 'live_event' && !isCreator) {
+      const booking = await Booking.findOne({
+        user: req.user._id,
+        room: room._id,
+        paymentStatus: 'paid'
+      });
+
+      if (!booking) {
+        return res.status(403).json({
+          success: false,
+          message: 'You must pre-book a ticket to join this live event'
+        });
+      }
+    }
+
     const isFollower = room.creator.followers.some(
       (f) => f.toString() === req.user._id.toString()
     );
 
-    if (!isCreator && !isFollower)
+    if (!isCreator && !isFollower && room.type !== 'live_event')
       return res.status(403).json({
         success: false,
         message: 'You must follow this user to join'

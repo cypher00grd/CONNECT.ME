@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Calendar, Link as LinkIcon, MapPin, Edit2, Camera, Loader2, Megaphone } from 'lucide-react';
+import { Calendar, Link as LinkIcon, MapPin, Edit2, Camera, Loader2, Megaphone, CalendarDays } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
 import FollowButton from './FollowButton';
 import Modal from '../common/Modal';
 import NotifyFollowersModal from './NotifyFollowersModal';
+import ScheduleEventModal from './ScheduleEventModal';
 import Input from '../common/Input';
 import { formatDate } from '../../utils/helpers';
 import { authAPI } from '../../services/api';
@@ -13,6 +14,7 @@ import toast from 'react-hot-toast';
 const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showNotifyModal, setShowNotifyModal] = useState(false);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [editForm, setEditForm] = useState({
     displayName: user?.displayName || '',
@@ -111,6 +113,13 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
                 Notify Followers
               </Button>
               <Button
+                variant="primary"
+                leftIcon={<CalendarDays size={16} />}
+                onClick={() => setShowScheduleModal(true)}
+              >
+                Schedule Live Event
+              </Button>
+              <Button
                 variant="secondary"
                 leftIcon={<Edit2 size={16} />}
                 onClick={() => setShowEditModal(true)}
@@ -198,6 +207,12 @@ const ProfileHeader = ({ user, isOwnProfile, onUpdateProfile }) => {
         isOpen={showNotifyModal}
         onClose={() => setShowNotifyModal(false)}
         followersCount={user?.followers?.length || 0}
+      />
+
+      {/* Schedule Live Event Modal */}
+      <ScheduleEventModal
+        isOpen={showScheduleModal}
+        onClose={() => setShowScheduleModal(false)}
       />
     </>
   );

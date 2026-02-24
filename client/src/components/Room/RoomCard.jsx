@@ -1,6 +1,9 @@
-import { Link } from 'react-router-dom';
-import { Users, Video, Clock } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { Users, Video, Clock, PlayCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { motion } from 'framer-motion';
+import { roomAPI } from '../../services/api';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 import { formatRelativeTime, getCategoryEmoji, getTimeRemaining } from '../../utils/helpers';
@@ -28,7 +31,25 @@ const RoomCard = ({ room, index = 0 }) => {
     status,
   } = room;
 
+  const navigate = useNavigate();
+  const { user } = useSelector(state => state.auth);
+  const isCreator = user?._id === creator?._id;
   const isLive = status === 'active';
+  const isScheduled = status === 'scheduled';
+
+  const handleGoLive = async (e) => {
+    e.preventDefault(); // Prevent standard Link navigation
+    e.stopPropagation();
+    try {
+      const res = await roomAPI.startEvent(_id);
+      if (res.data?.success) {
+        toast.success("We're Live!");
+        navigate(`/room/${_id}`);
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to start event');
+    }
+  };
 
   return (
     <motion.div
@@ -132,9 +153,24 @@ const RoomCard = ({ room, index = 0 }) => {
             </div>
           )}
 
-          {/* Join Button */}
+          {/* Action Button */}
           <div className="mt-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button className="w-full py-2.5 btn-primary">Join Room</button>
+            {isScheduled ? (
+              isCreator ? (
+                <button
+                  onClick={handleGoLive}
+                  className="w-full py-2.5 btn-primary bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 border-none flex items-center justify-center gap-2"
+                >
+                  <PlayCircle size={18} /> GO LIVE NOW
+                </button>
+              ) : (
+                <button className="w-full py-2.5 btn-secondary border-primary-500 text-primary-500 hover:bg-primary-50 cursor-not-allowed">
+                  Scheduled (Waiting for Creator...)
+                </button>
+              )
+            ) : (
+              <button className="w-full py-2.5 btn-primary">Join Room</button>
+            )}
           </div>
 
         </div>

@@ -7,23 +7,32 @@ import RoomCard from '../components/Room/RoomCard.jsx';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import Button from '../components/common/Button';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSocket } from '../hooks/useSocket';
+import toast from 'react-hot-toast';
 
 const Home = () => {
   const dispatch = useDispatch();
   const { rooms, isLoading } = useSelector((state) => state.rooms);
   const { user } = useSelector((state) => state.auth);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   // Mount global socket listeners so the feed auto-updates when followed users create a room
   useSocket();
 
   useEffect(() => {
     dispatch(getFeedRooms());
-  }, [dispatch]);
 
-  // Filter only active rooms
-  const activeRooms = rooms.filter((room) => room.status === 'active');
+    // Check Stripe redirect redirect
+    if (searchParams.get('booking') === 'success') {
+      toast.success('Live Event Booked Successfully!');
+      setSearchParams({}); // Clear params cleanly
+    }
+  }, [dispatch, searchParams, setSearchParams]);
+
+  // Filter for active and scheduled rooms from the backend feed
+  const activeRooms = rooms.filter((room) => room.status === 'active' || room.status === 'scheduled');
 
   if (isLoading) {
     return (

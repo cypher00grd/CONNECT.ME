@@ -8,6 +8,7 @@ import connectDB from "./config/db.js";
 import authRoutes from "./routes/authRoutes.js";
 import userRoutes from "./routes/userRoutes.js";
 import roomRoutes from "./routes/roomRoutes.js";
+import bookingRoutes from "./routes/bookingRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import { initializeSocket } from "./socket/index.js";
@@ -35,6 +36,11 @@ const io = new Server(server, { cors: corsOptions });
 // Make io accessible in routes
 app.set("io", io);
 
+// =======================
+// Stripe Webhook MUST be placed BEFORE express.json()
+// =======================
+app.use('/api/bookings/webhook', express.raw({ type: 'application/json' }), bookingRoutes);
+
 // Middleware
 app.use(cors(corsOptions));
 app.use(express.json({ limit: "2mb" }));
@@ -49,6 +55,7 @@ initializeSocket(io);
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/rooms", roomRoutes);
+app.use("/api/bookings", bookingRoutes); // Handles all other /api/bookings routes
 app.use("/api/upload", uploadRoutes);
 
 // Health check

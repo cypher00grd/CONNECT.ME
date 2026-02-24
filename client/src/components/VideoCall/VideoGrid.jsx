@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { MicOff, VideoOff } from 'lucide-react';
 import Avatar from '../common/Avatar';
 
-const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff, styleClass }) => {
+const VideoTile = ({ stream, user, isLocal, styleClass, forceMuted = false, forceVideoOff = false }) => {
   const videoRef = useRef(null);
 
   useEffect(() => {
@@ -11,9 +11,13 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff, styleClass }) =
     }
   }, [stream]);
 
+  // For remote streams, we shouldn't rely on a global 'isVideoOff' toggle.
+  // Instead, just check if the stream itself has any active video tracks!
+  const hasActiveVideo = stream && stream.getVideoTracks().some(track => track.enabled);
+
   return (
     <div className={`relative bg-dark-800 rounded-2xl overflow-hidden aspect-video shadow-lg ${styleClass} transition-all duration-300`}>
-      {stream && !isVideoOff ? (
+      {hasActiveVideo ? (
         <video
           ref={videoRef}
           autoPlay
@@ -38,12 +42,12 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff, styleClass }) =
             {isLocal ? 'You' : user?.displayName}
           </span>
           <div className="flex items-center gap-2">
-            {isMuted && (
+            {forceMuted && (
               <div className="p-1.5 bg-red-500 rounded-full shadow-sm">
                 <MicOff size={14} className="text-white" />
               </div>
             )}
-            {isVideoOff && (
+            {forceVideoOff && (
               <div className="p-1.5 bg-red-500 rounded-full shadow-sm">
                 <VideoOff size={14} className="text-white" />
               </div>
@@ -62,8 +66,12 @@ const VideoTile = ({ stream, user, isLocal, isMuted, isVideoOff, styleClass }) =
   );
 };
 
-const VideoGrid = ({ localStream, remoteStreams, localUser, participants, isAudioEnabled, isVideoEnabled }) => {
-  const totalParticipants = Object.keys(remoteStreams).length + 1;
+const VideoGrid = ({ localStream, remoteStreams, localUser, participants, isAudioEnabled, isVideoEnabled, isSpectator = false, isLiveEvent = false }) => {
+  // Broadcast Architecture Fix: Creators exclusively broadcast outwards. 
+  // We explicitly strip any "blank" track reflections from their Viewer peer connections.
+  const validRemoteStreams = (isLiveEvent && !isSpectator) ? {} : remoteStreams;
+
+  const totalParticipants = Object.keys(validRemoteStreams).length + (isSpectator ? 0 : 1);
 
   // Calculate the ideal width for each tile to fill up the flex container based on participant count
   const getTileWidth = () => {
@@ -83,17 +91,19 @@ const VideoGrid = ({ localStream, remoteStreams, localUser, participants, isAudi
   return (
     <div className="flex flex-wrap place-content-center items-center gap-2 p-2 h-full w-full max-h-screen overflow-hidden">
       {/* Local Video */}
-      <VideoTile
-        stream={localStream}
-        user={localUser}
-        isLocal={true}
-        isMuted={!isAudioEnabled}
-        isVideoOff={!isVideoEnabled}
-        styleClass={tileClass}
-      />
+      {!isSpectator && (
+        <VideoTile
+          stream={localStream}
+          user={localUser}
+          isLocal={true}
+          forceMuted={!isAudioEnabled}
+          forceVideoOff={!isVideoEnabled}
+          styleClass={tileClass}
+        />
+      )}
 
       {/* Remote Videos */}
-      {Object.entries(remoteStreams).map(([participantId, stream]) => {
+      {Object.entries(validRemoteStreams).map(([participantId, stream]) => {
         const participant = participants.find((p) => p._id === participantId);
         return (
           <VideoTile

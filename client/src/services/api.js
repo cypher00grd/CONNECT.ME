@@ -70,13 +70,20 @@ export const userAPI = {
 
 export const roomAPI = {
   create: (data) => api.post('/rooms', data),
+  schedule: (data) => api.post('/rooms/schedule', data),
+  startEvent: (id) => api.post(`/rooms/${id}/start-event`),
   getFeed: () => api.get('/rooms/feed'),
   getMyRooms: () => api.get('/rooms/my-rooms'),
+  getUserScheduledRooms: (userId) => api.get(`/rooms/user/${userId}/scheduled`),
   getRoom: (id) => api.get(`/rooms/${id}`),
   join: (id) => api.post(`/rooms/${id}/join`),
   leave: (id) => api.post(`/rooms/${id}/leave`),
   destroy: (id) => api.delete(`/rooms/${id}`),
   getMessages: (id, params) => api.get(`/rooms/${id}/messages`, { params }),
+};
+
+export const bookingAPI = {
+  createCheckoutSession: (data) => api.post('/bookings/create-checkout-session', data),
 };
 
 export default api;
