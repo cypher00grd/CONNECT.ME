@@ -165,6 +165,22 @@ const roomSlice = createSlice({
         state.currentRoom = { ...state.currentRoom, ...action.payload };
       }
     },
+    updateSharedEditor: (state, action) => {
+      const { roomId, sharedEditor } = action.payload;
+      if (state.currentRoom?._id === roomId) {
+        state.currentRoom.sharedEditor = {
+          ...(state.currentRoom.sharedEditor || {}),
+          ...(sharedEditor || {}),
+        };
+      }
+      const roomIndex = state.rooms.findIndex((room) => room._id === roomId);
+      if (roomIndex !== -1) {
+        state.rooms[roomIndex].sharedEditor = {
+          ...(state.rooms[roomIndex].sharedEditor || {}),
+          ...(sharedEditor || {}),
+        };
+      }
+    },
     removeRoom: (state, action) => {
       state.rooms = state.rooms.filter((r) => r._id !== action.payload);
       if (state.currentRoom?._id === action.payload) {
@@ -314,6 +330,7 @@ export const {
   addMessage,
   addRoom,
   updateRoom,
+  updateSharedEditor,
   removeRoom,
   setRoomEnded,
   addParticipant,

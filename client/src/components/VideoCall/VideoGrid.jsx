@@ -16,7 +16,7 @@ const VideoTile = ({ stream, user, isLocal, styleClass, forceMuted = false, forc
   const hasActiveVideo = stream && stream.getVideoTracks().some(track => track.enabled);
 
   return (
-    <div className={`relative bg-dark-800 rounded-2xl overflow-hidden aspect-video shadow-lg ${styleClass} transition-all duration-300`}>
+    <div className={`relative bg-black/40 backdrop-blur-md rounded-2xl overflow-hidden aspect-video shadow-glass ring-1 ring-white/5 ${styleClass} transition-all duration-300`}>
       {hasActiveVideo ? (
         <video
           ref={videoRef}
@@ -58,7 +58,7 @@ const VideoTile = ({ stream, user, isLocal, styleClass, forceMuted = false, forc
 
       {/* Local indicator */}
       {isLocal && (
-        <div className="absolute top-3 right-3 px-2 py-1 bg-primary-500 rounded-full text-white text-xs shadow-md">
+        <div className="absolute top-3 right-3 px-2 py-1 bg-gradient-primary shadow-glow rounded-full text-white text-xs font-semibold tracking-wide">
           You
         </div>
       )}

@@ -7,9 +7,9 @@ import { motion } from 'framer-motion';
 import { getUserProfile, clearViewedProfile } from '../redux/Slices/userSlice';
 import { updateProfile } from '../redux/Slices/authSlice';
 import ProfileHeader from '../components/User/ProfileHeader';
+import BadgeGrid from '../components/Profile/BadgeGrid';
 import FollowersList from '../components/User/FollowersList';
 import ScheduledEventsList from '../components/User/ScheduledEventsList';
-import RoomCard from '../components/Room/RoomCard';
 import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import useAuth from '../hooks/useAuth';
@@ -77,6 +77,20 @@ const Profile = () => {
           onUpdateProfile={handleUpdateProfile}
         />
       </motion.div>
+
+      {viewedProfile.badges?.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="card p-4 space-y-3"
+        >
+          <h2 className="text-lg font-display font-bold text-gray-900 dark:text-white">
+            Developer Badges
+          </h2>
+          <BadgeGrid badges={viewedProfile.badges} compact />
+        </motion.div>
+      )}
 
       {/* Scheduled Events Section (Prominent) */}
       <motion.div

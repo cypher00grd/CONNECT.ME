@@ -2,6 +2,34 @@ import { memo } from 'react';
 import Avatar from '../common/Avatar';
 import { formatMessageTime } from '../../utils/helpers';
 import useAuth from '../../hooks/useAuth';
+import CodeBlock from './CodeBlock';
+
+const parseContentBlocks = (content = '') => {
+  const blocks = [];
+  const codeRegex = /```([a-zA-Z0-9+#.-]*)?\n?([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeRegex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      blocks.push({ type: 'text', value: content.slice(lastIndex, match.index) });
+    }
+
+    blocks.push({
+      type: 'code',
+      language: match[1] || 'text',
+      value: match[2] || '',
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    blocks.push({ type: 'text', value: content.slice(lastIndex) });
+  }
+
+  return blocks.length > 0 ? blocks : [{ type: 'text', value: content }];
+};
 
 const MessageItem = memo(({ message, showAvatar = true }) => {
   const { userId } = useAuth();
@@ -11,6 +39,7 @@ const MessageItem = memo(({ message, showAvatar = true }) => {
     content = "",
     createdAt,
     type = "text",
+    attachments = [],
   } = message || {};
 
   const isOwnMessage = sender?._id === userId;
@@ -55,13 +84,48 @@ const MessageItem = memo(({ message, showAvatar = true }) => {
         {/* Bubble */}
         <div
           className={`
-            px-4 py-2.5 rounded-2xl break-words whitespace-pre-wrap
+            px-4 py-2.5 rounded-2xl break-words whitespace-pre-wrap space-y-2
             ${isOwnMessage
               ? 'bg-primary-500 text-white rounded-br-md'
               : 'bg-gray-100 dark:bg-dark-700 text-gray-900 dark:text-white rounded-bl-md'}
           `}
         >
-          <p className="text-sm">{content}</p>
+          {attachments.length > 0 && (
+            <div className="grid gap-2">
+              {attachments.map((attachment) => (
+                <a
+                  key={attachment.url}
+                  href={attachment.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block overflow-hidden rounded-xl border border-white/20"
+                >
+                  <img
+                    src={attachment.url}
+                    alt={attachment.name || 'Message attachment'}
+                    className="max-h-64 w-full object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+          {content && (
+            <div className="space-y-2 text-sm">
+              {parseContentBlocks(content).map((block, index) => (
+                block.type === 'code' ? (
+                  <CodeBlock
+                    key={`${message._id || createdAt}-code-${index}`}
+                    code={block.value}
+                    language={block.language}
+                  />
+                ) : (
+                  <p key={`${message._id || createdAt}-text-${index}`}>
+                    {block.value}
+                  </p>
+                )
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Timestamp */}

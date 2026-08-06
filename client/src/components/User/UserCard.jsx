@@ -2,6 +2,20 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Avatar from '../common/Avatar';
 import FollowButton from './FollowButton';
+import { EXPERIENCE_LEVELS, SPECIALIZATIONS } from '../../utils/constants';
+
+const getLabel = (items, value, fallback = 'Other') => (
+  items.find((item) => item.value === value)?.label || fallback
+);
+
+const getTechPreview = (user = {}) => {
+  const stack = user.techStack || {};
+  return [
+    ...(stack.languages || []),
+    ...(stack.frameworks || []),
+    ...(stack.tools || []),
+  ].filter(Boolean).slice(0, 3);
+};
 
 const UserCard = ({ user, showFollowButton = true, index = 0 }) => {
   if (!user) return null; // safety check
@@ -15,9 +29,13 @@ const UserCard = ({ user, showFollowButton = true, index = 0 }) => {
     isFollowing,
     followersCount,
     followers,
+    specialization,
+    experienceLevel,
+    yearsOfExperience,
   } = user;
 
   const totalFollowers = followersCount || followers?.length || 0;
+  const techPreview = getTechPreview(user);
 
   return (
     <motion.div
@@ -47,6 +65,24 @@ const UserCard = ({ user, showFollowButton = true, index = 0 }) => {
                 {bio}
               </p>
             )}
+
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-medium">
+                {getLabel(SPECIALIZATIONS, specialization)}
+              </span>
+              <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-dark-800 text-gray-600 dark:text-gray-300 text-xs font-medium">
+                {getLabel(EXPERIENCE_LEVELS, experienceLevel, 'Mid-level')}
+                {Number(yearsOfExperience) > 0 ? ` · ${yearsOfExperience} yrs` : ''}
+              </span>
+              {techPreview.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2 py-0.5 rounded-full bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-300 text-xs font-medium"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
 
             <p className="text-xs text-gray-400 mt-1">
               {totalFollowers} followers

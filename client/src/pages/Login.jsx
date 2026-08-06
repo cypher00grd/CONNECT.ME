@@ -13,11 +13,13 @@ const Login = () => {
 
         <div className="mx-auto w-full max-w-sm">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
-              <span className="text-white font-bold text-2xl">L</span>
+          <Link to="/" className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 rounded-xl bg-gradient-primary shadow-sm dark:shadow-glow flex items-center justify-center">
+              <span className="text-white font-display font-bold text-2xl">C</span>
             </div>
-            <span className="text-2xl font-bold text-gradient">Linkly</span>
+            <span className="text-2xl font-display font-bold tracking-tight text-gray-900 dark:text-white">
+              Connect<span className="text-primary-500">.dev</span>
+            </span>
           </Link>
 
           <LoginForm />
@@ -25,24 +27,28 @@ const Login = () => {
       </div>
 
       {/* Right Side - Illustration */}
-      <div className="hidden lg:flex lg:flex-1 bg-gradient-to-br from-primary-500 via-purple-500 to-pink-500 items-center justify-center p-12">
-        <div className="max-w-lg text-white text-center">
-          <h2 className="text-4xl font-bold mb-6">
-            Connect with people in real-time
+      <div className="hidden lg:flex lg:flex-1 bg-gray-50 dark:bg-dark-900 border-l border-gray-200/50 dark:border-dark-800/50 items-center justify-center p-12 relative overflow-hidden">
+        {/* Subtle Background Glows */}
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-secondary-500/10 rounded-full blur-[100px]" />
+
+        <div className="max-w-lg text-center relative z-10">
+          <h2 className="text-4xl font-display font-bold mb-6 text-gray-900 dark:text-white leading-tight">
+            Real-time collaboration for engineers
           </h2>
-          <p className="text-lg opacity-90">
-            Create rooms, share moments, and build meaningful connections with your community.
+          <p className="text-lg text-gray-600 dark:text-gray-300">
+            Debug together, pair program, review code, and level up with live sessions.
           </p>
 
-          <div className="mt-12 flex justify-center gap-4">
-            <div className="w-20 h-20 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center text-4xl">
-              🎤
+          <div className="mt-12 flex justify-center gap-6">
+            <div className="w-20 h-20 glass dark:glass-dark rounded-2xl flex items-center justify-center text-4xl shadow-sm dark:shadow-glass hover:-translate-y-2 transition-transform duration-300">
+              ⚙️
             </div>
-            <div className="w-20 h-20 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center text-4xl">
-              ✈️
+            <div className="w-20 h-20 glass dark:glass-dark rounded-2xl flex items-center justify-center text-4xl shadow-sm dark:shadow-glass hover:-translate-y-2 transition-transform duration-300">
+              🖥️
             </div>
-            <div className="w-20 h-20 bg-white/20 backdrop-blur-lg rounded-2xl flex items-center justify-center text-4xl">
-              🎮
+            <div className="w-20 h-20 glass dark:glass-dark rounded-2xl flex items-center justify-center text-4xl shadow-sm dark:shadow-glass hover:-translate-y-2 transition-transform duration-300">
+              🚀
             </div>
           </div>
         </div>

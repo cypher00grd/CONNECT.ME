@@ -4,6 +4,9 @@ import roomReducer from './Slices/roomSlice';
 import userReducer from './Slices/userSlice';
 import notificationReducer from './Slices/notificationSlice';
 import themeReducer from './Slices/themeSlice';
+import ticketReducer from './Slices/ticketSlice';
+import issueReducer from './Slices/issueSlice';
+import activityReducer from './Slices/activitySlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +15,9 @@ export const store = configureStore({
     users: userReducer,
     notifications: notificationReducer,
     theme: themeReducer,
+    tickets: ticketReducer,
+    issues: issueReducer,
+    activity: activityReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

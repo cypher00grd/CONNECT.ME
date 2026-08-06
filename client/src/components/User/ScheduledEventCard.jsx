@@ -1,16 +1,26 @@
-import { useState } from 'react';
-import { CalendarDays, Clock, IndianRupee, CheckCircle2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { CalendarDays, Clock, IndianRupee, CheckCircle2, PlayCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Button from '../common/Button';
-import { bookingAPI } from '../../services/api';
+import { bookingAPI, roomAPI } from '../../services/api';
 import { formatDate } from '../../utils/helpers';
 
-const ScheduledEventCard = ({ event, isOwnProfile, onBookingSuccess }) => {
+const ScheduledEventCard = ({ event, isOwnProfile }) => {
     const [isProcessing, setIsProcessing] = useState(false);
-    const [isBooked, setIsBooked] = useState(event.isBooked);
+    const [now, setNow] = useState(Date.now());
+    const navigate = useNavigate();
 
     // Parse time
     const scheduledTime = new Date(event.scheduledStartTime);
+    const canStart = event.isStartable || scheduledTime.getTime() <= now;
+
+    useEffect(() => {
+        if (!isOwnProfile || canStart) return undefined;
+
+        const timer = setInterval(() => setNow(Date.now()), 30000);
+        return () => clearInterval(timer);
+    }, [canStart, isOwnProfile]);
 
     const handlePayment = async () => {
         try {
@@ -40,6 +50,27 @@ const ScheduledEventCard = ({ event, isOwnProfile, onBookingSuccess }) => {
         }
     };
 
+    const handleStartEvent = async () => {
+        if (!canStart) {
+            toast.error('This event can only be started at its scheduled time');
+            return;
+        }
+
+        try {
+            setIsProcessing(true);
+            const res = await roomAPI.startEvent(event._id);
+
+            if (res.data?.success) {
+                toast.success("We're Live!");
+                navigate(`/room/${event._id}`);
+            }
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to start event');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     return (
         <div className="card p-5 border border-primary-500/20 bg-gradient-to-br from-white to-primary-50/50 dark:from-dark-800 dark:to-primary-900/10">
             <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -50,7 +81,7 @@ const ScheduledEventCard = ({ event, isOwnProfile, onBookingSuccess }) => {
                         <span className="inline-block px-2.5 py-1 bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 text-xs font-medium rounded-full mb-2">
                             Scheduled Event
                         </span>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        <h3 className="text-xl font-display font-bold text-gray-900 dark:text-white tracking-tight">
                             {event.title}
                         </h3>
                         {event.description && (
@@ -82,8 +113,22 @@ const ScheduledEventCard = ({ event, isOwnProfile, onBookingSuccess }) => {
                     </div>
 
                     {isOwnProfile ? (
-                        <span className="text-sm font-medium text-primary-500">Your Event</span>
-                    ) : isBooked ? (
+                        canStart ? (
+                            <Button
+                                variant="primary"
+                                fullWidth
+                                onClick={handleStartEvent}
+                                isLoading={isProcessing}
+                                leftIcon={<PlayCircle size={16} />}
+                            >
+                                Start Now
+                            </Button>
+                        ) : (
+                            <Button variant="outline" disabled fullWidth>
+                                Reminder
+                            </Button>
+                        )
+                    ) : event.isBooked ? (
                         <Button variant="outline" className="opacity-100 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 border-green-200 dark:border-green-800" disabled fullWidth>
                             <CheckCircle2 size={16} className="mr-2" /> Booked
                         </Button>

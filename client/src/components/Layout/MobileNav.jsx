@@ -37,9 +37,9 @@ const MobileNav = ({ onCreateRoom }) => {
                 onClick={item.action}
                 className="flex flex-col items-center justify-center p-2 -mt-6"
               >
-                <div className="w-12 h-12 bg-gradient-to-br from-primary-500 to-purple-500 
-                                rounded-full flex items-center justify-center 
-                                shadow-lg shadow-primary-500/30">
+                <div className="w-12 h-12 bg-gradient-primary
+                                rounded-full flex items-center justify-center
+                                shadow-sm dark:shadow-glow">
                   <item.icon size={24} className="text-white" />
                 </div>
               </button>
@@ -49,10 +49,9 @@ const MobileNav = ({ onCreateRoom }) => {
                 to={item.path}
                 className={({ isActive }) => `
                   flex flex-col items-center justify-center p-2 min-w-[60px] relative
-                  ${
-                    isActive
-                      ? 'text-primary-500'
-                      : 'text-gray-500 dark:text-gray-400'
+                  ${isActive
+                    ? 'text-primary-500'
+                    : 'text-gray-500 dark:text-gray-400'
                   }
                 `}
               >

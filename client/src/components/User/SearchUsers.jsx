@@ -1,11 +1,20 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, X, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { searchUsers, clearSearchResults } from '../../redux/Slices/userSlice';
 import Avatar from '../common/Avatar';
-import { debounce } from '../../utils/helpers';
+
+const getTechPreview = (user = {}) => {
+  const stack = user.techStack || {};
+  return [
+    user.specialization,
+    ...(stack.languages || []),
+    ...(stack.frameworks || []),
+    ...(stack.tools || []),
+  ].filter(Boolean).slice(0, 3);
+};
 
 const SearchUsers = ({ onSelect }) => {
   const dispatch = useDispatch();
@@ -17,22 +26,21 @@ const SearchUsers = ({ onSelect }) => {
   const inputRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Create debounced function only once
-  const debouncedSearch = useCallback(
-    debounce((value) => {
-      if (value.length >= 2) {
-        dispatch(searchUsers(value));
-      } else {
-        dispatch(clearSearchResults());
-      }
-    }, 300),
-    [dispatch]
-  );
-
-  // Run search on query change
+  // Debounce search without sharing a stale callback between query changes.
   useEffect(() => {
-    debouncedSearch(query);
-  }, [query, debouncedSearch]);
+    const value = query.trim();
+    if (value.length < 2) {
+      dispatch(clearSearchResults());
+      return undefined;
+    }
+
+    dispatch(clearSearchResults());
+    const timer = setTimeout(() => {
+      dispatch(searchUsers(value));
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [query, dispatch]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -79,7 +87,7 @@ const SearchUsers = ({ onSelect }) => {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => setIsFocused(true)}
-          placeholder="Search users..."
+          placeholder="Search developers..."
           className="w-full pl-10 pr-10 py-2.5 bg-gray-100 dark:bg-dark-700 rounded-full text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
         />
 
@@ -103,7 +111,7 @@ const SearchUsers = ({ onSelect }) => {
       {/* Results */}
       <AnimatePresence>
         {showResults && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
@@ -130,6 +138,11 @@ const SearchUsers = ({ onSelect }) => {
                       <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
                         @{user.username}
                       </p>
+                      {getTechPreview(user).length > 0 && (
+                        <p className="text-xs text-gray-400 truncate">
+                          {getTechPreview(user).join(' · ')}
+                        </p>
+                      )}
                     </div>
 
                     {user.isFollowing && (
@@ -142,10 +155,10 @@ const SearchUsers = ({ onSelect }) => {
               </div>
             ) : query.length >= 2 && !isSearching ? (
               <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                No users found for "{query}"
+                No developers found for "{query}"
               </div>
             ) : null}
-          </motion.div>
+          </Motion.div>
         )}
       </AnimatePresence>
     </div>

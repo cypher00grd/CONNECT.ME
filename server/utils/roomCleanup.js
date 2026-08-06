@@ -8,7 +8,7 @@ import Room from '../models/Room.js';
  * - Notifies participants
  */
 export const startRoomCleanupJob = (io) => {
-  cron.schedule('* * * * *', async () => {
+  const task = cron.schedule('* * * * *', async () => {
     try {
       const now = new Date();
 
@@ -56,4 +56,5 @@ export const startRoomCleanupJob = (io) => {
   });
 
   console.log('⏰ Room cleanup cron job started');
+  return task;
 };

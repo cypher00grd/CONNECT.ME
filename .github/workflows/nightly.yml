@@ -1,0 +1,101 @@
+name: Nightly quality suite
+
+on:
+  schedule:
+    - cron: "30 20 * * *"
+  workflow_dispatch:
+
+jobs:
+  browser-matrix:
+    name: Full browser and mobile matrix
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      FULL_BROWSER_MATRIX: "true"
+      NODE_ENV: test
+      MONGODB_URI: mongodb://connect_test:connect_test_password@127.0.0.1:27017/connect_test?authSource=admin
+      REDIS_URL: redis://127.0.0.1:6379
+      REDIS_KEY_PREFIX: connect:nightly:e2e
+      REDIS_CACHE_ENABLED: "true"
+      EXPOSE_CACHE_HEADERS: "true"
+      JWT_SECRET: connect-nightly-test-only-secret
+      CLIENT_URL: http://127.0.0.1:5174
+      CLIENT_URLS: http://127.0.0.1:5174,http://localhost:5174
+    services:
+      mongo:
+        image: mongo:8.0
+        env:
+          MONGO_INITDB_ROOT_USERNAME: connect_test
+          MONGO_INITDB_ROOT_PASSWORD: connect_test_password
+          MONGO_INITDB_DATABASE: connect_test
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix client
+      - run: npm ci --prefix server
+      - run: npx playwright install --with-deps chromium firefox webkit
+      - run: npx playwright test
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-playwright
+          path: |
+            playwright-report
+            test-results
+          retention-days: 14
+
+  redis-performance:
+    name: Redis A/B/C comparison
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+      NODE_ENV: test
+      MONGODB_URI: mongodb://connect_test:connect_test_password@127.0.0.1:27017/connect_test?authSource=admin
+      REDIS_URL: redis://127.0.0.1:6379
+      JWT_SECRET: connect-nightly-test-only-secret
+      PERF_RUNS: "5"
+      K6_DURATION: 30s
+      K6_VUS: "10"
+      K6_DOCKER: "true"
+    services:
+      mongo:
+        image: mongo:8.0
+        env:
+          MONGO_INITDB_ROOT_USERNAME: connect_test
+          MONGO_INITDB_ROOT_PASSWORD: connect_test_password
+          MONGO_INITDB_DATABASE: connect_test
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci --prefix server
+      - run: npm run test:perf:compare
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-performance
+          path: artifacts/performance
+          retention-days: 30

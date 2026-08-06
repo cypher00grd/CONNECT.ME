@@ -4,18 +4,21 @@ import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import MobileNav from './MobileNav';
 import CreateRoomModal from '../Room/CreateRoomModal';
+import PostIssueModal from '../Issues/PostIssueModal';
 import VideoCallNotification from '../VideoCall/VideoCallNotification';
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createRoomOpen, setCreateRoomOpen] = useState(false);
+  const [postIssueOpen, setPostIssueOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-dark-950">
+    <div className="min-h-screen bg-transparent">
       {/* Navbar */}
       <Navbar
         onMenuClick={() => setSidebarOpen(!sidebarOpen)}
         onCreateRoom={() => setCreateRoomOpen(true)}
+        onPostIssue={() => setPostIssueOpen(true)}
       />
 
       {/* Sidebar */}
@@ -35,6 +38,11 @@ const Layout = () => {
       <CreateRoomModal
         isOpen={createRoomOpen}
         onClose={() => setCreateRoomOpen(false)}
+      />
+
+      <PostIssueModal
+        isOpen={postIssueOpen}
+        onClose={() => setPostIssueOpen(false)}
       />
 
       {/* Video Call Notifications */}

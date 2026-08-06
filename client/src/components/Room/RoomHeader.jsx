@@ -1,37 +1,52 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Users, 
-  Video, 
-  MoreVertical, 
-  Share2, 
+import {
+  ArrowLeft,
+  Users,
+  Video,
+  MoreVertical,
+  Share2,
   LogOut,
   Trash2,
   Clock,
-  Copy
+  Copy,
+  CheckCircle2,
+  GitBranch
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Avatar from '../common/Avatar';
 import Badge from '../common/Badge';
 import Modal from '../common/Modal';
 import ParticipantsList from './ParticipantsList';
-import { getCategoryEmoji, getTimeRemaining, getRoomInviteLink, copyToClipboard } from '../../utils/helpers';
-import { CATEGORY_COLORS } from '../../utils/constants';
+import { getCategoryEmoji, getCategoryLabel, getTimeRemaining, getRoomInviteLink, copyToClipboard } from '../../utils/helpers';
+import { CATEGORY_COLORS, ROOM_DIFFICULTIES, ROOM_SESSION_TYPES } from '../../utils/constants';
 
-const RoomHeader = ({ 
-  room, 
-  isCreator, 
-  onLeave, 
-  onEnd, 
+const getOptionLabel = (options, value, fallback = '') => (
+  options.find((option) => option.value === value)?.label || fallback || value
+);
+
+const getSessionEmoji = (value) => (
+  ROOM_SESSION_TYPES.find((option) => option.value === value)?.emoji || '💬'
+);
+
+const RoomHeader = ({
+  room,
+  isCreator,
+  onLeave,
+  onEnd,
+  onResolveTicket,
+  onResolveIssue,
   onStartVideoCall,
+  showResolveTicket = false,
+  showResolveIssue = false,
   videoCallActive,
-  videoCallParticipants 
+  videoCallParticipants
 }) => {
   const navigate = useNavigate();
   const [showMenu, setShowMenu] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [copied, setCopied] = useState(false);
+  const categoryColor = CATEGORY_COLORS[room.category] || CATEGORY_COLORS.other;
 
   const handleShare = async () => {
     const link = getRoomInviteLink(room._id);
@@ -49,7 +64,7 @@ const RoomHeader = ({
 
   return (
     <>
-      <header className="sticky top-0 z-30 glass border-b border-gray-200/50 dark:border-dark-700/50">
+      <header className="sticky top-0 z-30 glass-dark border-b border-dark-800/50">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Left Section */}
           <div className="flex items-center gap-3">
@@ -68,7 +83,7 @@ const RoomHeader = ({
               />
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="font-semibold text-gray-900 dark:text-white line-clamp-1">
+                  <h1 className="font-display font-bold text-xl text-gray-900 dark:text-white line-clamp-1 tracking-tight">
                     {room.title}
                   </h1>
                   {room.status === 'active' && (
@@ -78,9 +93,25 @@ const RoomHeader = ({
                 <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <span>@{room.creator?.username}</span>
                   <span>•</span>
-                  <span className={`${CATEGORY_COLORS[room.category]?.split(' ')[0]} px-1.5 py-0.5 rounded text-xs`}>
-                    {getCategoryEmoji(room.category)} {room.category}
+                  <span className={`${categoryColor.split(' ')[0]} px-1.5 py-0.5 rounded text-xs`}>
+                    {getCategoryEmoji(room.category)} {getCategoryLabel(room.category)}
                   </span>
+                  {room.sessionType && (
+                    <>
+                      <span>•</span>
+                      <span className="hidden sm:inline-flex items-center gap-1 rounded bg-dark-800 px-1.5 py-0.5 text-xs text-gray-300">
+                        {getSessionEmoji(room.sessionType)} {getOptionLabel(ROOM_SESSION_TYPES, room.sessionType, 'Open Discussion')}
+                      </span>
+                    </>
+                  )}
+                  {room.difficulty && room.difficulty !== 'any' && (
+                    <>
+                      <span>•</span>
+                      <span className="hidden md:inline rounded bg-dark-800 px-1.5 py-0.5 text-xs text-gray-300">
+                        {getOptionLabel(ROOM_DIFFICULTIES, room.difficulty)}
+                      </span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -94,6 +125,30 @@ const RoomHeader = ({
                 <Clock size={14} />
                 {getTimeRemaining(room.autoDeleteAt)}
               </div>
+            )}
+
+            {(showResolveTicket || showResolveIssue) && (
+              <button
+                onClick={showResolveIssue ? onResolveIssue : onResolveTicket}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-full transition-colors"
+              >
+                <CheckCircle2 size={16} />
+                <span className="text-sm font-medium">
+                  {showResolveIssue ? 'Issue Fixed' : 'Resolve'}
+                </span>
+              </button>
+            )}
+
+            {room.repositoryUrl && (
+              <a
+                href={room.repositoryUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-dark-700 hover:bg-gray-200 dark:hover:bg-dark-600 rounded-full transition-colors text-sm text-gray-700 dark:text-gray-200"
+              >
+                <GitBranch size={15} />
+                Repo
+              </a>
             )}
 
             {/* Participants Button */}
@@ -157,19 +212,28 @@ const RoomHeader = ({
                         {copied ? <Copy size={18} className="text-green-500" /> : <Share2 size={18} />}
                         {copied ? 'Copied!' : 'Share Room'}
                       </button>
-                      
+
                       <hr className="my-1 border-gray-100 dark:border-dark-700" />
-                      
+
                       {isCreator ? (
                         <button
                           onClick={() => {
                             setShowMenu(false);
-                            onEnd();
+                            if (showResolveTicket || showResolveIssue) {
+                              if (showResolveIssue) onResolveIssue();
+                              else onResolveTicket();
+                            } else {
+                              onEnd();
+                            }
                           }}
-                          className="flex items-center gap-3 w-full px-4 py-2.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          className={`flex items-center gap-3 w-full px-4 py-2.5 transition-colors ${
+                            showResolveTicket || showResolveIssue
+                              ? 'text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20'
+                              : 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20'
+                          }`}
                         >
-                          <Trash2 size={18} />
-                          End Room
+                          {showResolveTicket || showResolveIssue ? <CheckCircle2 size={18} /> : <Trash2 size={18} />}
+                          {showResolveIssue ? 'Issue Fixed' : showResolveTicket ? 'Resolve Ticket' : 'End Room'}
                         </button>
                       ) : (
                         <button

@@ -1,16 +1,14 @@
 import express from 'express';
 import {
-    createCheckoutSession,
-    stripeWebhook
+    createCheckoutSession
 } from '../controllers/bookingController.js';
 import { protect } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.js';
+import { createCheckoutSessionSchema } from '../validation/bookingSchemas.js';
 
 const router = express.Router();
 
 // Stripe Checkout requires authentication
-router.post('/create-checkout-session', protect, createCheckoutSession);
-
-// Webhook endpoint (authentication bypassed, verified via Stripe Signature instead)
-router.post('/webhook', express.raw({ type: 'application/json' }), stripeWebhook);
+router.post('/create-checkout-session', protect, validate({ body: createCheckoutSessionSchema }), createCheckoutSession);
 
 export default router;

@@ -5,10 +5,11 @@ import {
   Compass,
   User,
   Settings,
-  Users, 
-  Radio
+  Users,
+  Activity
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 import useAuth from '../../hooks/useAuth';
 import Avatar from '../common/Avatar';
 import Button from '../common/Button';
@@ -19,7 +20,7 @@ import { useEffect, useCallback } from 'react';
 const navItems = [
   { icon: Home, label: 'Home', path: '/' },
   { icon: Compass, label: 'Explore', path: '/explore' },
-  { icon: Radio, label: 'My Rooms', path: '/my-rooms' },
+  { icon: Activity, label: 'My Activity', path: '/activity' },
   { icon: User, label: 'Profile', path: '/profile' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
@@ -28,6 +29,9 @@ const Sidebar = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
   const { user, username } = useAuth();
   const { suggestions } = useSelector((state) => state.users);
+  const visibleSuggestions = suggestions.filter(
+    (suggestedUser) => suggestedUser._id?.toString() !== user?._id?.toString()
+  );
 
   /** Fetch suggestions only once on mount */
   useEffect(() => {
@@ -37,10 +41,16 @@ const Sidebar = ({ isOpen, onClose }) => {
   /** Follow handler */
   const handleFollow = useCallback(
     async (userId) => {
-      await dispatch(followUser(userId));
-      dispatch(addToFollowing(userId));
+      if (!userId || userId.toString() === user?._id?.toString()) return;
+
+      try {
+        await dispatch(followUser(userId)).unwrap();
+        dispatch(addToFollowing(userId));
+      } catch (error) {
+        toast.error(error || 'Failed to follow user');
+      }
     },
-    [dispatch]
+    [dispatch, user?._id]
   );
 
   /** Close sidebar on link click (mobile) */
@@ -62,8 +72,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside
         className={`
           fixed top-16 left-0 bottom-0 w-72
-          bg-white dark:bg-dark-900
-          border-r border-gray-100 dark:border-dark-800
+          glass-dark border-r border-dark-800/50
           transform transition-transform duration-300 ease-in-out
           z-40 lg:z-30
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -88,10 +97,9 @@ const Sidebar = ({ isOpen, onClose }) => {
                   className={({ isActive }) => `
                     flex items-center gap-3 px-4 py-3 rounded-xl
                     transition-all duration-200
-                    ${
-                      isActive
-                        ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-600 dark:text-primary-400 font-medium'
-                        : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-dark-800'
+                    ${isActive
+                      ? 'bg-primary-50 dark:bg-primary-500/10 text-primary-600 dark:text-primary-500 font-medium'
+                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-dark-800/50 hover:text-gray-900 dark:hover:text-white'
                     }
                   `}
                 >
@@ -103,20 +111,20 @@ const Sidebar = ({ isOpen, onClose }) => {
           </nav>
 
           {/* Divider */}
-          <div className="border-t border-gray-100 dark:border-dark-700" />
+          <div className="border-t border-gray-200/50 dark:border-dark-800/50" />
 
           {/* Suggestions */}
-          {suggestions.length > 0 && (
+          {visibleSuggestions.length > 0 && (
             <div>
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 px-4 mb-3">
                 Suggested for you
               </h3>
 
               <div className="space-y-2">
-                {suggestions.slice(0, 5).map((suggestedUser) => (
+                {visibleSuggestions.slice(0, 5).map((suggestedUser) => (
                   <div
                     key={suggestedUser._id}
-                    className="flex items-center justify-between px-4 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-dark-800 transition-colors"
+                    className="flex items-center justify-between px-4 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-dark-800/50 transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <Avatar
@@ -149,7 +157,7 @@ const Sidebar = ({ isOpen, onClose }) => {
           )}
 
           {/* Stats */}
-          <div className="bg-gray-50 dark:bg-dark-800 rounded-xl p-4">
+          <div className="bg-white dark:bg-dark-900/50 border border-gray-100 dark:border-dark-800/50 rounded-xl p-4">
             <div className="flex items-center gap-3 mb-3">
               <Avatar
                 src={user?.avatar}

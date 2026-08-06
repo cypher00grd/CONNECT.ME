@@ -1,4 +1,5 @@
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
+import { CATEGORY_BY_VALUE } from './constants';
 
 // Format relative time (e.g., "2 hours ago")
 export const formatRelativeTime = (date) => {
@@ -84,19 +85,11 @@ export const isValidUsername = (username) => {
 
 // Get category emoji
 export const getCategoryEmoji = (category) => {
-  const emojis = {
-    singing: '🎤',
-    travel: '✈️',
-    gaming: '🎮',
-    study: '📚',
-    coding: '💻',
-    music: '🎵',
-    art: '🎨',
-    fitness: '💪',
-    cooking: '🍳',
-    other: '✨',
-  };
-  return emojis[category] || '✨';
+  return CATEGORY_BY_VALUE[category]?.emoji || CATEGORY_BY_VALUE.other.emoji;
+};
+
+export const getCategoryLabel = (category) => {
+  return CATEGORY_BY_VALUE[category]?.label || CATEGORY_BY_VALUE.other.label;
 };
 
 // Calculate time remaining for auto-delete

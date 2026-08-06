@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { UserPlus, UserMinus, Check } from 'lucide-react';
 import { followUser, unfollowUser } from '../../redux/Slices/userSlice';
@@ -8,10 +8,12 @@ import Button from '../common/Button';
 
 const FollowButton = ({ userId, isFollowing: initialFollowing, size = 'md', showIcon = true }) => {
   const dispatch = useDispatch();
+  const currentUserId = useSelector((state) => state.auth.user?._id);
 
   const [isFollowing, setIsFollowing] = useState(initialFollowing);
   const [isLoading, setIsLoading] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const isSelf = currentUserId && userId && currentUserId.toString() === userId.toString();
 
   // Sync prop updates → internal state (important for profile pages)
   useEffect(() => {
@@ -22,7 +24,7 @@ const FollowButton = ({ userId, isFollowing: initialFollowing, size = 'md', show
     e.preventDefault();
     e.stopPropagation();
 
-    if (!userId) return;
+    if (!userId || isSelf) return;
 
     setIsLoading(true);
 
@@ -42,6 +44,8 @@ const FollowButton = ({ userId, isFollowing: initialFollowing, size = 'md', show
       setIsLoading(false);
     }
   };
+
+  if (isSelf) return null;
 
   // -------------------------
   //  Following State UI

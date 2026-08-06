@@ -1,39 +1,153 @@
 import mongoose from 'mongoose';
 import User from '../models/User.js';
 import Notification from '../models/Notification.js';
+import { expandTechTags, normalizeTechTags } from '../data/techTaxonomy.js';
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const toIdString = (value) => {
+  if (!value) return '';
+  return (value._id || value).toString();
+};
+
+const sameId = (left, right) => toIdString(left) === toIdString(right);
+
+const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const userCardFields = [
+  'username',
+  'displayName',
+  'avatar',
+  'bio',
+  'followers',
+  'skills',
+  'isInstructor',
+  'rating',
+  'reviewsCount',
+  'reputationPoints',
+  'badges',
+  'githubUsername',
+  'githubUrl',
+  'techStack',
+  'experienceLevel',
+  'yearsOfExperience',
+  'specialization',
+  'sessionsCompleted',
+  'issuesResolved',
+  'codeReviewsGiven',
+  'hoursHelped',
+  'openToMentor',
+  'lookingForHelp',
+  'developerPreferences'
+].join(' ');
+
+const getComparableTechTags = (user = {}) => {
+  const stack = user.techStack || {};
+  return new Set([
+    ...(user.skills || []),
+    ...(stack.languages || []),
+    ...(stack.frameworks || []),
+    ...(stack.tools || []),
+    user.specialization
+  ].filter(Boolean).map((item) => item.toString().trim().toLowerCase()));
+};
+
+const buildDiscoveryFilters = (query = {}) => {
+  const tech = normalizeTechTags([
+    ...(Array.isArray(query.tech) ? query.tech : String(query.tech || '').split(',')),
+    ...(Array.isArray(query.language) ? query.language : String(query.language || '').split(',')),
+    ...(Array.isArray(query.framework) ? query.framework : String(query.framework || '').split(',')),
+    ...(Array.isArray(query.tool) ? query.tool : String(query.tool || '').split(','))
+  ]);
+  const expanded = expandTechTags(tech);
+  const filters = [];
+
+  if (expanded.all.length > 0) {
+    filters.push({
+      $or: [
+        { skills: { $in: expanded.all } },
+        { 'techStack.languages': { $in: expanded.all } },
+        { 'techStack.frameworks': { $in: expanded.all } },
+        { 'techStack.tools': { $in: expanded.all } },
+        { specialization: { $in: [...expanded.domains, ...expanded.direct] } }
+      ]
+    });
+  }
+
+  if (typeof query.specialization === 'string' && query.specialization.trim()) {
+    filters.push({ specialization: query.specialization.trim().toLowerCase() });
+  }
+
+  if (typeof query.experienceLevel === 'string' && query.experienceLevel.trim()) {
+    filters.push({ experienceLevel: query.experienceLevel.trim().toLowerCase() });
+  }
+
+  if (query.openToMentor === 'true' || query.openToMentor === true) {
+    filters.push({ $or: [{ openToMentor: true }, { isInstructor: true }] });
+  }
+
+  return filters;
+};
+
+const getSuggestionScore = (candidate, currentUser) => {
+  const currentTags = getComparableTechTags(currentUser);
+  const candidateTags = getComparableTechTags(candidate);
+  let overlap = 0;
+
+  candidateTags.forEach((tag) => {
+    if (currentTags.has(tag)) overlap += 1;
+  });
+
+  const mentorBoost = candidate.openToMentor || candidate.isInstructor ? 2 : 0;
+  const ratingBoost = Number(candidate.rating || 0);
+  const reputationBoost = Math.min(Number(candidate.reputationPoints || 0) / 100, 5);
+
+  return overlap * 10 + mentorBoost + ratingBoost + reputationBoost;
+};
 
 // @desc    Search users
 // @route   GET /api/users/search?q=query
 // @access  Private
 export const searchUsers = async (req, res, next) => {
   try {
-    const { q } = req.query;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+    const discoveryFilters = buildDiscoveryFilters(req.query);
 
-    if (!q || q.length < 2) {
+    if (q.length < 2 && discoveryFilters.length === 0) {
       return res.status(200).json({
         success: true,
         data: []
       });
     }
 
+    const searchTerm = escapeRegex(q.slice(0, 50));
+    const followingIds = new Set((req.user.following || []).map(toIdString));
+    const conditions = [{ _id: { $ne: req.user._id } }, ...discoveryFilters];
+
+    if (q.length >= 2) {
+      conditions.push({
+        $or: [
+          { username: { $regex: searchTerm, $options: 'i' } },
+          { displayName: { $regex: searchTerm, $options: 'i' } },
+          { specialization: { $regex: searchTerm, $options: 'i' } },
+          { 'techStack.languages': { $regex: searchTerm, $options: 'i' } },
+          { 'techStack.frameworks': { $regex: searchTerm, $options: 'i' } },
+          { 'techStack.tools': { $regex: searchTerm, $options: 'i' } }
+        ]
+      });
+    }
+
     const users = await User.find({
-      $and: [
-        {
-          $or: [
-            { username: { $regex: q, $options: 'i' } },
-            { displayName: { $regex: q, $options: 'i' } }
-          ]
-        },
-        { _id: { $ne: req.user._id } }
-      ]
+      $and: conditions
     })
-      .select('username displayName avatar bio followers')
-      .limit(20);
+      .select(userCardFields)
+      .limit(20)
+      .lean();
 
     // Add isFollowing field
     const usersWithFollowStatus = users.map((user) => ({
-      ...user.toObject(),
-      isFollowing: req.user.following.includes(user._id),
+      ...user,
+      isFollowing: followingIds.has(toIdString(user._id)),
       followersCount: user.followers.length
     }));
 
@@ -52,9 +166,10 @@ export const searchUsers = async (req, res, next) => {
 export const getUserProfile = async (req, res, next) => {
   try {
     const user = await User.findOne({ username: req.params.username.toLowerCase() })
-      .select('-email')
-      .populate('followers', 'username displayName avatar')
-      .populate('following', 'username displayName avatar');
+      .select('-email -password')
+      .populate('followers', userCardFields)
+      .populate('following', userCardFields)
+      .lean();
 
     if (!user) {
       return res.status(404).json({
@@ -63,17 +178,25 @@ export const getUserProfile = async (req, res, next) => {
       });
     }
 
+    const currentUserId = toIdString(req.user._id);
+    const followingIds = new Set((req.user.following || []).map(toIdString));
+
     // Check if current user follows this user
-    const isFollowing = user.followers.some(
-      (follower) => follower._id.toString() === req.user._id.toString()
-    );
+    const isFollowing = followingIds.has(toIdString(user._id));
+    const decorateUser = (profileUser) => ({
+      ...profileUser,
+      isFollowing: followingIds.has(toIdString(profileUser._id)),
+      isOwnProfile: sameId(profileUser._id, currentUserId)
+    });
 
     res.status(200).json({
       success: true,
       data: {
-        ...user.toObject(),
+        ...user,
+        followers: (user.followers || []).map(decorateUser),
+        following: (user.following || []).map(decorateUser),
         isFollowing,
-        isOwnProfile: user._id.toString() === req.user._id.toString()
+        isOwnProfile: sameId(user._id, currentUserId)
       }
     });
   } catch (error) {
@@ -86,8 +209,26 @@ export const getUserProfile = async (req, res, next) => {
 // @access  Private
 export const followUser = async (req, res, next) => {
   try {
-    const userToFollow = await User.findById(req.params.id);
-    const currentUser = await User.findById(req.user._id);
+    const targetUserId = req.params.id;
+
+    if (!isValidObjectId(targetUserId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user id'
+      });
+    }
+
+    // Can't follow yourself
+    if (sameId(targetUserId, req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You can't follow yourself"
+      });
+    }
+
+    const userToFollow = await User.findById(targetUserId)
+      .select('username displayName avatar')
+      .lean();
 
     if (!userToFollow) {
       return res.status(404).json({
@@ -96,35 +237,29 @@ export const followUser = async (req, res, next) => {
       });
     }
 
-    // Can't follow yourself
-    if (req.params.id === req.user._id.toString()) {
-      return res.status(400).json({
-        success: false,
-        message: "You can't follow yourself"
-      });
-    }
+    const followResult = await User.updateOne(
+      { _id: req.user._id, following: { $ne: userToFollow._id } },
+      { $addToSet: { following: userToFollow._id } }
+    );
 
-    // Check if already following
-    if (currentUser.following.includes(req.params.id)) {
+    if (followResult.modifiedCount === 0) {
       return res.status(400).json({
         success: false,
         message: 'You are already following this user'
       });
     }
 
-    // Add to following/followers
-    currentUser.following.push(req.params.id);
-    userToFollow.followers.push(req.user._id);
-
-    await currentUser.save();
-    await userToFollow.save();
+    await User.updateOne(
+      { _id: userToFollow._id },
+      { $addToSet: { followers: req.user._id } }
+    );
 
     // Create notification
     await Notification.create({
       recipient: userToFollow._id,
       sender: req.user._id,
       type: 'follow',
-      message: `${currentUser.displayName} started following you`
+      message: `${req.user.displayName} started following you`
     });
 
     // Emit socket event
@@ -133,12 +268,12 @@ export const followUser = async (req, res, next) => {
       io.to(userToFollow._id.toString()).emit('notification', {
         type: 'follow',
         sender: {
-          _id: currentUser._id,
-          username: currentUser.username,
-          displayName: currentUser.displayName,
-          avatar: currentUser.avatar
+          _id: req.user._id,
+          username: req.user.username,
+          displayName: req.user.displayName,
+          avatar: req.user.avatar
         },
-        message: `${currentUser.displayName} started following you`
+        message: `${req.user.displayName} started following you`
       });
     }
 
@@ -156,8 +291,23 @@ export const followUser = async (req, res, next) => {
 // @access  Private
 export const unfollowUser = async (req, res, next) => {
   try {
-    const userToUnfollow = await User.findById(req.params.id);
-    const currentUser = await User.findById(req.user._id);
+    const targetUserId = req.params.id;
+
+    if (!isValidObjectId(targetUserId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid user id'
+      });
+    }
+
+    if (sameId(targetUserId, req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        message: "You can't unfollow yourself"
+      });
+    }
+
+    const userToUnfollow = await User.findById(targetUserId).select('_id').lean();
 
     if (!userToUnfollow) {
       return res.status(404).json({
@@ -166,24 +316,22 @@ export const unfollowUser = async (req, res, next) => {
       });
     }
 
-    // Check if not following
-    if (!currentUser.following.includes(req.params.id)) {
+    const unfollowResult = await User.updateOne(
+      { _id: req.user._id, following: userToUnfollow._id },
+      { $pull: { following: userToUnfollow._id } }
+    );
+
+    if (unfollowResult.modifiedCount === 0) {
       return res.status(400).json({
         success: false,
         message: 'You are not following this user'
       });
     }
 
-    // Remove from following/followers
-    currentUser.following = currentUser.following.filter(
-      (id) => id.toString() !== req.params.id
+    await User.updateOne(
+      { _id: userToUnfollow._id },
+      { $pull: { followers: req.user._id } }
     );
-    userToUnfollow.followers = userToUnfollow.followers.filter(
-      (id) => id.toString() !== req.user._id.toString()
-    );
-
-    await currentUser.save();
-    await userToUnfollow.save();
 
     res.status(200).json({
       success: true,
@@ -238,18 +386,34 @@ export const markNotificationsRead = async (req, res, next) => {
 // @access  Private
 export const getSuggestions = async (req, res, next) => {
   try {
+    const followingIds = (req.user.following || []).map(toIdString);
+    const discoveryFilters = buildDiscoveryFilters(req.query);
+    const currentUser = await User.findById(req.user._id)
+      .select('skills techStack specialization')
+      .lean();
+
     // Get users that current user is not following
     const users = await User.find({
-      _id: { $ne: req.user._id, $nin: req.user.following }
+      $and: [
+        { _id: { $nin: [req.user._id, ...followingIds] } },
+        ...discoveryFilters
+      ]
     })
-      .select('username displayName avatar bio followers')
-      .limit(10)
-      .sort({ followers: -1 });
+      .select(userCardFields)
+      .limit(40)
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const usersWithCount = users.map((user) => ({
-      ...user.toObject(),
-      followersCount: user.followers.length
-    }));
+    const usersWithCount = users
+      .map((user) => ({
+        ...user,
+        isFollowing: false,
+        followersCount: user.followers.length,
+        suggestionScore: getSuggestionScore(user, currentUser)
+      }))
+      .sort((left, right) => right.suggestionScore - left.suggestionScore)
+      .slice(0, 10)
+      .map(({ suggestionScore, ...user }) => user);
 
     res.status(200).json({
       success: true,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Mail, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -9,8 +9,7 @@ import Button from '../common/Button';
 
 const LoginForm = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { isLoading, isError, isSuccess, message, user } = useSelector((state) => state.auth);
+  const { isLoading, isError, message } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -64,7 +63,7 @@ const LoginForm = () => {
       className="w-full max-w-md"
     >
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-2">
           Welcome back
         </h1>
         <p className="text-gray-500 dark:text-gray-400">

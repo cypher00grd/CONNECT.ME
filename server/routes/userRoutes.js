@@ -10,6 +10,7 @@ import {
   notifyFollowers,
 } from '../controllers/userController.js';
 import { protect } from '../middleware/auth.js';
+import { cacheAuthenticatedResponse, invalidateCacheDomains } from '../middleware/cache.js';
 
 const router = express.Router();
 
@@ -17,12 +18,12 @@ const router = express.Router();
 router.use(protect);
 
 router.get('/search', searchUsers);
-router.get('/suggestions', getSuggestions);
+router.get('/suggestions', cacheAuthenticatedResponse({ domain: 'suggestions', ttlSeconds: 30 }), getSuggestions);
 router.get('/notifications', getNotifications);
 router.put('/notifications/read', markNotificationsRead);
 router.post('/notify-followers', notifyFollowers);
 router.get('/:username', getUserProfile);
-router.post('/:id/follow', followUser);
-router.post('/:id/unfollow', unfollowUser);
+router.post('/:id/follow', invalidateCacheDomains('suggestions'), followUser);
+router.post('/:id/unfollow', invalidateCacheDomains('suggestions'), unfollowUser);
 
 export default router;

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Radio, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -8,92 +8,148 @@ import Loader from '../components/common/Loader';
 import EmptyState from '../components/common/EmptyState';
 import Button from '../components/common/Button';
 import { Link, useSearchParams } from 'react-router-dom';
-import { useSocket } from '../hooks/useSocket';
 import toast from 'react-hot-toast';
+import TicketDesk from '../components/Tickets/TicketDesk';
+import CreateTicketModal from '../components/Tickets/CreateTicketModal';
+import { getMyTickets, getTicketFeed, refreshTicketPayment } from '../redux/Slices/ticketSlice';
+import { getIssueFeed } from '../redux/Slices/issueSlice';
+import { getSuggestions } from '../redux/Slices/userSlice';
+import TechFeed from '../components/Home/TechFeed';
 
 const Home = () => {
   const dispatch = useDispatch();
   const { rooms, isLoading } = useSelector((state) => state.rooms);
   const { user } = useSelector((state) => state.auth);
+  const { feedIssues } = useSelector((state) => state.issues);
+  const { suggestions } = useSelector((state) => state.users);
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
 
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Mount global socket listeners so the feed auto-updates when followed users create a room
-  useSocket();
-
   useEffect(() => {
     dispatch(getFeedRooms());
+    dispatch(getIssueFeed());
+    dispatch(getSuggestions());
+  }, [dispatch]);
 
-    // Check Stripe redirect redirect
-    if (searchParams.get('booking') === 'success') {
-      toast.success('Live Event Booked Successfully!');
-      setSearchParams({}); // Clear params cleanly
-    }
+  useEffect(() => {
+    const bookingStatus = searchParams.get('booking');
+    const ticketPaymentStatus = searchParams.get('ticket_payment');
+    const ticketId = searchParams.get('ticket');
+
+    if (!bookingStatus && !ticketPaymentStatus) return;
+
+    const syncRedirectState = async () => {
+      if (bookingStatus === 'success') {
+        toast.success('Live Event Booked Successfully!');
+      }
+
+      if (ticketPaymentStatus === 'success') {
+        if (ticketId) {
+          try {
+            await dispatch(refreshTicketPayment(ticketId)).unwrap();
+            dispatch(getMyTickets());
+            dispatch(getTicketFeed());
+            toast.success('Ticket bounty authorized. Matching is live.');
+          } catch (error) {
+            toast.error(error || 'Payment is still pending. Try Check payment on the ticket.');
+          }
+        } else {
+          toast.success('Ticket bounty authorized. Matching will start shortly.');
+        }
+      }
+
+      if (ticketPaymentStatus === 'cancelled') {
+        toast.error('Ticket payment authorization cancelled.');
+      }
+
+      setSearchParams({}, { replace: true });
+    };
+
+    syncRedirectState();
   }, [dispatch, searchParams, setSearchParams]);
 
-  // Filter for active and scheduled rooms from the backend feed
-  const activeRooms = rooms.filter((room) => room.status === 'active' || room.status === 'scheduled');
+  // Filter for live rooms and scheduled reminders from the backend feed
+  const feedRooms = rooms.filter((room) => room.status === 'active' || room.status === 'scheduled');
+  const liveCount = feedRooms.filter((room) => room.status === 'active').length;
+  const reminderCount = feedRooms.filter((room) => room.status === 'scheduled').length;
 
   if (isLoading) {
     return (
       <div className="flex justify-center py-20">
-        <Loader size="lg" text="Loading rooms..." />
+        <Loader size="lg" text="Loading developer sessions..." />
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
+      {/* Developer dashboard */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="card p-6 bg-gradient-to-r from-primary-500 to-purple-500"
+        className="card p-6 border-0 bg-gradient-primary shadow-sm dark:shadow-glow relative overflow-hidden"
       >
-        <h1 className="text-2xl font-bold text-white mb-2">
-          Welcome back, {user?.displayName?.split(' ')[0]}! 👋
-        </h1>
-        <p className="text-white/80">
-          See what's happening with people you follow
-        </p>
+        <div className="relative z-10">
+          <h1 className="text-2xl font-display font-bold text-white mb-2 tracking-tight">
+            Developer dashboard
+          </h1>
+          <p className="text-white/90 text-sm md:text-base">
+            {user?.displayName ? `${user.displayName.split(' ')[0]}, your stack-aware workspace is ready.` : 'Your stack-aware workspace is ready.'}
+          </p>
+        </div>
       </motion.div>
 
+      <TechFeed
+        rooms={feedRooms}
+        issues={feedIssues}
+        developers={suggestions}
+        user={user}
+      />
+
+      <TicketDesk onCreateTicket={() => setTicketModalOpen(true)} />
+
       {/* Section Header */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+      <div className="flex items-center justify-between mt-8 mb-4">
+        <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white flex items-center gap-2 tracking-tight">
           <Radio size={22} className="text-primary-500" />
-          Live Rooms
+          Live Sessions
         </h2>
         <span className="text-sm text-gray-500 dark:text-gray-400">
-          {activeRooms.length} active
+          {liveCount} live{reminderCount > 0 ? ` / ${reminderCount} reminders` : ''}
         </span>
       </div>
 
       {/* Rooms List */}
-      {activeRooms.length > 0 ? (
+      {feedRooms.length > 0 ? (
         <div className="space-y-4">
-          {activeRooms.map((room, index) => (
+          {feedRooms.map((room, index) => (
             <RoomCard key={room._id} room={room} index={index} />
           ))}
         </div>
       ) : (
         <EmptyState
           icon={<Radio size={32} />}
-          title="No active rooms"
+          title="No live sessions"
           description={
             user?.following?.length > 0
-              ? "People you follow haven't started any rooms yet."
-              : "Follow some people to see their rooms here!"
+              ? "Developers you follow have not started any sessions yet."
+              : "Follow developers to see their live sessions here."
           }
           action={
             <Link to="/explore">
               <Button leftIcon={<Users size={18} />}>
-                Find People to Follow
+                Find Developers
               </Button>
             </Link>
           }
         />
       )}
+
+      <CreateTicketModal
+        isOpen={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
+      />
     </div>
   );
 };

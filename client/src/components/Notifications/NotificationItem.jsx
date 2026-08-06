@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { UserPlus, Radio, Video, Megaphone } from 'lucide-react';
+import { UserPlus, Radio, Video, Megaphone, LifeBuoy } from 'lucide-react';
 import Avatar from '../common/Avatar';
 import { formatRelativeTime } from '../../utils/helpers';
 
@@ -8,14 +8,28 @@ const icons = {
   room_created: Radio,
   video_call: Video,
   announcement: Megaphone,
+  ticket_ping: LifeBuoy,
+  ticket_locked: LifeBuoy,
+  ticket_helper_locked: LifeBuoy,
+  ticket_search_resumed: LifeBuoy,
+  ticket_payment_authorized: LifeBuoy,
+  ticket_direct_waiting: LifeBuoy,
+  ticket_accepted: Video,
+  ticket_cancelled: LifeBuoy,
+  ticket_resolved: LifeBuoy,
+  ticket_rejected: LifeBuoy,
+  ticket_no_helpers: LifeBuoy,
+  ticket_error: LifeBuoy,
 };
 
 const NotificationItem = ({ notification, onClick }) => {
   const { type, sender, room, isRead, createdAt } = notification;
   const Icon = icons[type] || Radio;
+  const isTicket = type?.startsWith('ticket_');
 
   const getLink = () => {
     if (type === 'room_created' && room?._id) return `/room/${room._id}`;
+    if (isTicket && room?._id) return `/room/${room._id}`;
     if ((type === 'follow' || type === 'announcement') && sender?.username) return `/profile/${sender.username}`;
     return '#';
   };
@@ -41,7 +55,7 @@ const NotificationItem = ({ notification, onClick }) => {
           className={`
             absolute -bottom-1 -right-1 w-6 h-6 
             rounded-full flex items-center justify-center 
-            ${(type === 'follow' || type === 'announcement') ? 'bg-primary-500' : 'bg-green-500'}
+            ${(type === 'follow' || type === 'announcement' || isTicket) ? 'bg-primary-500' : 'bg-green-500'}
           `}
         >
           <Icon size={12} className="text-white" />
@@ -56,6 +70,7 @@ const NotificationItem = ({ notification, onClick }) => {
           {type === 'room_created' && room?.title && `started a room: "${room.title}"`}
           {type === 'video_call' && 'invited you to a video call'}
           {type === 'announcement' && notification.message && ` says: "${notification.message}"`}
+          {isTicket && (notification.message || 'Ticket update')}
         </p>
 
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">

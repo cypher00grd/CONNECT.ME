@@ -4,12 +4,15 @@ import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import RoomHeader from './RoomHeader';
 import Chat from './Chat';
+import SharedEditorPanel from './SharedEditorPanel';
 import VideoCallModal from '../VideoCall/VideoCallModal';
 import VideoGrid from '../VideoCall/VideoGrid';
 import VideoControls from '../VideoCall/VideoControls';
+import TicketReviewModal from '../Tickets/TicketReviewModal';
 import { PageLoader } from '../common/Loader';
 import EmptyState from '../common/EmptyState';
 import Button from '../common/Button';
+import toast from 'react-hot-toast';
 import {
   getRoom,
   joinRoom,
@@ -18,6 +21,8 @@ import {
   getRoomMessages,
   clearCurrentRoom
 } from '../../redux/Slices/roomSlice';
+import { resolveTicket as resolveHelpTicket } from '../../redux/Slices/ticketSlice';
+import { resolveIssue as resolvePostedIssue } from '../../redux/Slices/issueSlice';
 import useAuth from '../../hooks/useAuth';
 import useSocket from '../../hooks/useSocket';
 import useVideoCall from '../../hooks/useVideoCall';
@@ -41,6 +46,8 @@ const RoomView = () => {
 
   const [showVideoModal, setShowVideoModal] = useState(false);
   const [roomEnded, setRoomEnded] = useState(false);
+  const [reviewTicketId, setReviewTicketId] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
 
   // Initialize socket connection for this room
   useSocket(roomId);
@@ -76,6 +83,14 @@ const RoomView = () => {
           videoCall.joinCall();
         }
       }
+
+      if (room.type === 'vod_session') {
+        if (!videoCallActive) {
+          videoCall.startCall();
+        } else {
+          videoCall.joinCall();
+        }
+      }
     }
   }, [room?._id, room?.status]);
 
@@ -85,6 +100,13 @@ const RoomView = () => {
       setRoomEnded(true);
     }
   }, [room?.status]);
+
+  useEffect(() => {
+    if (room?.type !== 'vod_session') return undefined;
+
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [room?.type]);
 
   const handleLeave = async () => {
     await dispatch(leaveRoom(roomId));
@@ -110,6 +132,51 @@ const RoomView = () => {
   };
 
   const isCreator = room && isRoomCreator(room, userId);
+  const isVodSession = room?.type === 'vod_session';
+  const isIssueSession = room?.type === 'issue_session';
+
+  const handleResolveTicket = async () => {
+    const ticketId = room?.ticket?._id || room?.ticket;
+    if (!ticketId) return;
+    if (!window.confirm('Mark this help session as resolved?')) return;
+
+    try {
+      await dispatch(resolveHelpTicket(ticketId)).unwrap();
+      videoCall.leaveCall();
+      toast.success('Ticket resolved');
+      setReviewTicketId(ticketId);
+    } catch (error) {
+      toast.error(error || 'Failed to resolve ticket');
+    }
+  };
+
+  const handleResolveIssue = async () => {
+    const issueId = room?.issue?._id || room?.issue;
+    if (!issueId) return;
+    if (!window.confirm('Mark this issue as fixed?')) return;
+
+    try {
+      const result = await dispatch(resolvePostedIssue(issueId)).unwrap();
+      if (result?.payment?.url) {
+        toast.success('Redirecting to Stripe to pay the bounty');
+        window.location.href = result.payment.url;
+        return;
+      }
+      toast.success('Issue resolved');
+      navigate('/activity');
+    } catch (error) {
+      toast.error(error || 'Failed to resolve issue');
+    }
+  };
+
+  const ticket = room?.ticket;
+  const sessionStartedAt = ticket?.sessionStartedAt ? new Date(ticket.sessionStartedAt).getTime() : null;
+  const minimumMs = (ticket?.estimatedMinutes || 30) * 60 * 1000;
+  const elapsedMs = sessionStartedAt ? Math.max(0, now - sessionStartedAt) : 0;
+  const remainingMs = Math.max(0, minimumMs - elapsedMs);
+  const remainingMinutes = Math.floor(remainingMs / 60000);
+  const remainingSeconds = Math.floor((remainingMs % 60000) / 1000);
+  const minimumMet = sessionStartedAt && remainingMs === 0;
 
   // Loading state
   if (isLoading && !room) {
@@ -135,7 +202,7 @@ const RoomView = () => {
   }
 
   // Room ended state
-  if (roomEnded || room?.status === 'ended') {
+  if ((roomEnded || room?.status === 'ended') && !reviewTicketId) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <EmptyState
@@ -157,16 +224,29 @@ const RoomView = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white dark:bg-dark-900">
+    <div className="flex flex-col h-screen bg-transparent">
       {/* Header */}
       <RoomHeader
         room={room}
         isCreator={isCreator}
         onLeave={handleLeave}
         onEnd={handleEnd}
+        onResolveTicket={handleResolveTicket}
+        onResolveIssue={handleResolveIssue}
+        showResolveTicket={isVodSession && isCreator && !!room.ticket}
+        showResolveIssue={isIssueSession && isCreator && room.issue?.status === 'in_progress'}
         onStartVideoCall={handleStartVideoCall}
         videoCallActive={videoCallActive}
         videoCallParticipants={videoCallParticipants}
+      />
+
+      <TicketReviewModal
+        isOpen={!!reviewTicketId}
+        ticketId={reviewTicketId}
+        onClose={() => {
+          setReviewTicketId(null);
+          navigate('/');
+        }}
       />
 
       {/* Video Call Active Banner */}
@@ -191,10 +271,20 @@ const RoomView = () => {
         )}
       </AnimatePresence>
 
+      {isVodSession && (
+        <div className="bg-gray-950 text-white px-4 py-2 flex items-center justify-center text-sm border-b border-dark-800">
+          {sessionStartedAt
+            ? minimumMet
+              ? 'Minimum session time met. Payout is eligible when resolved.'
+              : `Minimum time remaining: ${remainingMinutes}:${String(remainingSeconds).padStart(2, '0')}`
+            : 'Minimum timer starts when both users join the video call.'}
+        </div>
+      )}
+
       {/* Main Content Area */}
-      {room.type === 'live_event' ? (
+      {room.type === 'live_event' || isVodSession ? (
         <div className="flex-1 flex overflow-hidden">
-          {/* Broadcaster Video Panel (Theater Mode) */}
+          {/* Video Panel */}
           <div className="flex-[3] relative bg-black flex flex-col">
             <div className="flex-1 min-h-0">
               <VideoGrid
@@ -205,19 +295,20 @@ const RoomView = () => {
                 isAudioEnabled={videoCall.isAudioEnabled}
                 isVideoEnabled={videoCall.isVideoEnabled}
                 isSpectator={isSpectator}
-                isLiveEvent={true}
+                isLiveEvent={room.type === 'live_event'}
               />
             </div>
 
-            {/* Only show full controls for the Creator */}
-            {isCreator && (
-              <div className="h-20 shrink-0 border-t border-dark-800 bg-dark-950 flex items-center justify-center relative z-10">
+            {(isCreator || isVodSession) && (
+              <div className="h-20 shrink-0 border-t border-dark-800/50 glass-dark flex items-center justify-center relative z-10">
                 <VideoControls
                   isAudioEnabled={videoCall.isAudioEnabled}
                   isVideoEnabled={videoCall.isVideoEnabled}
+                  isScreenSharing={videoCall.isScreenSharing}
                   onToggleAudio={videoCall.toggleAudio}
                   onToggleVideo={videoCall.toggleVideo}
-                  onLeave={handleEnd}
+                  onToggleScreenShare={!isSpectator ? videoCall.toggleScreenShare : undefined}
+                  onLeave={isVodSession ? videoCall.leaveCall : handleEnd}
                   participantCount={videoCallParticipants?.length || 0}
                 />
               </div>
@@ -225,15 +316,22 @@ const RoomView = () => {
           </div>
 
           {/* Right Side Chat Sidebar */}
-          <div className="w-[350px] shrink-0 border-l border-gray-200 dark:border-dark-700 bg-white dark:bg-dark-900 flex flex-col">
+          <div className="w-[350px] shrink-0 border-l border-dark-800/50 glass-dark flex flex-col">
             <Chat roomId={roomId} />
           </div>
         </div>
       ) : (
         <>
-          {/* Standard Room Chat Area */}
-          <div className="flex-1 overflow-hidden">
-            <Chat roomId={roomId} />
+          {/* Standard and issue-session workspace */}
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex h-full flex-col lg:flex-row">
+              <div className="min-h-[320px] flex-1 min-w-0">
+                <SharedEditorPanel roomId={roomId} room={room} />
+              </div>
+              <div className="min-h-[320px] w-full shrink-0 border-l border-dark-800/50 glass-dark lg:w-[380px]">
+                <Chat roomId={roomId} />
+              </div>
+            </div>
           </div>
 
           {/* Standard Room Video Call Modal */}

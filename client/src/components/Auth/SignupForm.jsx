@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Mail, Lock, User, AtSign } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Mail, Lock, User, AtSign, Github, Briefcase } from 'lucide-react';
+import { motion as Motion } from 'framer-motion';
 import { signup, reset } from '../../redux/Slices/authSlice';
 import Input from '../common/Input';
 import Button from '../common/Button';
+import SkillTagInput from '../common/SkillTagInput';
 import { isValidEmail, isValidUsername } from '../../utils/helpers';
+import { EXPERIENCE_LEVELS, SPECIALIZATIONS, TECH_STACK_SUGGESTIONS } from '../../utils/constants';
 
 const SignupForm = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
-  const { isLoading, isError, isSuccess, message } = useSelector((state) => state.auth);
+  const { isLoading, isError, message } = useSelector((state) => state.auth);
 
   const [formData, setFormData] = useState({
     displayName: '',
@@ -19,6 +20,18 @@ const SignupForm = () => {
     email: '',
     password: '',
     confirmPassword: '',
+    githubUsername: '',
+    githubUrl: '',
+    techStack: {
+      languages: [],
+      frameworks: [],
+      tools: [],
+    },
+    experienceLevel: 'mid',
+    yearsOfExperience: 0,
+    specialization: 'other',
+    openToMentor: false,
+    lookingForHelp: true,
   });
   const [errors, setErrors] = useState({});
 
@@ -49,8 +62,10 @@ const SignupForm = () => {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    } else if (formData.password.length > 128) {
+      newErrors.password = 'Password cannot exceed 128 characters';
     }
 
     if (formData.password !== formData.confirmPassword) {
@@ -62,47 +77,73 @@ const SignupForm = () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
 
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: '' }));
     }
+    if (isError) {
+      dispatch(reset());
+    }
+  };
+
+  const handleTechStackChange = (key, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      techStack: {
+        ...prev.techStack,
+        [key]: value,
+      },
+    }));
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
     if (validateForm()) {
-      const { confirmPassword, ...signupData } = formData;
+      const signupData = {
+        displayName: formData.displayName,
+        username: formData.username,
+        email: formData.email,
+        password: formData.password,
+        githubUsername: formData.githubUsername,
+        githubUrl: formData.githubUrl,
+        techStack: formData.techStack,
+        experienceLevel: formData.experienceLevel,
+        yearsOfExperience: Number(formData.yearsOfExperience) || 0,
+        specialization: formData.specialization,
+        openToMentor: formData.openToMentor,
+        lookingForHelp: formData.lookingForHelp,
+      };
       dispatch(signup(signupData));
     }
   };
 
   return (
-    <motion.div
+    <Motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-md"
+      className="w-full max-w-lg"
     >
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+        <h1 className="text-3xl font-display font-bold text-gray-900 dark:text-white mb-2">
           Create account
         </h1>
         <p className="text-gray-500 dark:text-gray-400">
-          Join Connect and interact with others
+          Build your developer profile for better matches
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {isError && (
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl text-sm"
           >
             {message}
-          </motion.div>
+          </Motion.div>
         )}
 
         <Input
@@ -147,6 +188,7 @@ const SignupForm = () => {
           value={formData.password}
           onChange={handleChange}
           error={errors.password}
+          helperText="Use at least 8 characters"
           leftIcon={<Lock size={18} />}
         />
 
@@ -160,6 +202,138 @@ const SignupForm = () => {
           error={errors.confirmPassword}
           leftIcon={<Lock size={18} />}
         />
+
+        <Input
+          label="GitHub Username"
+          type="text"
+          name="githubUsername"
+          placeholder="octocat"
+          value={formData.githubUsername}
+          onChange={handleChange}
+          leftIcon={<Github size={18} />}
+        />
+
+        <Input
+          label="GitHub Profile URL"
+          type="url"
+          name="githubUrl"
+          placeholder="https://github.com/octocat"
+          value={formData.githubUrl}
+          onChange={handleChange}
+          leftIcon={<Github size={18} />}
+        />
+
+        <SkillTagInput
+          label="Languages"
+          value={formData.techStack.languages}
+          onChange={(languages) => handleTechStackChange('languages', languages)}
+          placeholder="JavaScript, Python, Go..."
+          max={8}
+          suggestions={TECH_STACK_SUGGESTIONS.languages}
+        />
+
+        <SkillTagInput
+          label="Frameworks"
+          value={formData.techStack.frameworks}
+          onChange={(frameworks) => handleTechStackChange('frameworks', frameworks)}
+          placeholder="React, Next.js, Express..."
+          max={8}
+          suggestions={TECH_STACK_SUGGESTIONS.frameworks}
+        />
+
+        <SkillTagInput
+          label="Tools"
+          value={formData.techStack.tools}
+          onChange={(tools) => handleTechStackChange('tools', tools)}
+          placeholder="Docker, Redis, MongoDB..."
+          max={8}
+          suggestions={TECH_STACK_SUGGESTIONS.tools}
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+              Specialization
+            </label>
+            <select
+              name="specialization"
+              value={formData.specialization}
+              onChange={handleChange}
+              className="input-field"
+            >
+              {SPECIALIZATIONS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+              Experience
+            </label>
+            <select
+              name="experienceLevel"
+              value={formData.experienceLevel}
+              onChange={handleChange}
+              className="input-field"
+            >
+              {EXPERIENCE_LEVELS.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Input
+            label="Years"
+            type="number"
+            name="yearsOfExperience"
+            min="0"
+            max="50"
+            value={formData.yearsOfExperience}
+            onChange={handleChange}
+            leftIcon={<Briefcase size={18} />}
+          />
+        </div>
+
+        <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-dark-700 bg-gray-50 dark:bg-dark-900/40">
+          <input
+            type="checkbox"
+            name="openToMentor"
+            checked={formData.openToMentor}
+            onChange={handleChange}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+              Open to mentoring / helping others
+            </span>
+            <span className="block text-sm text-gray-500 dark:text-gray-400">
+              You can change this from your profile later.
+            </span>
+          </span>
+        </label>
+
+        <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 dark:border-dark-700 bg-gray-50 dark:bg-dark-900/40">
+          <input
+            type="checkbox"
+            name="lookingForHelp"
+            checked={formData.lookingForHelp}
+            onChange={handleChange}
+            className="mt-1 h-4 w-4 rounded border-gray-300 text-primary-500 focus:ring-primary-500"
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">
+              Looking for engineering help
+            </span>
+            <span className="block text-sm text-gray-500 dark:text-gray-400">
+              Helps tune discovery and matching.
+            </span>
+          </span>
+        </label>
 
         <Button
           type="submit"
@@ -177,7 +351,7 @@ const SignupForm = () => {
           Sign in
         </Link>
       </p>
-    </motion.div>
+    </Motion.div>
   );
 };
 

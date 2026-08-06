@@ -33,7 +33,8 @@ const bookingSchema = new mongoose.Schema(
 
 // Indexes
 bookingSchema.index({ room: 1, user: 1 }, { unique: true });
-bookingSchema.index({ razorpayOrderId: 1 });
+bookingSchema.index({ user: 1, paymentStatus: 1 });
+bookingSchema.index({ room: 1, paymentStatus: 1 });
 
 const Booking = mongoose.model('Booking', bookingSchema);
 

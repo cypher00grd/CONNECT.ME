@@ -13,11 +13,13 @@ const VideoCallModal = ({ isOpen, onClose, roomId, videoCall }) => {
     remoteStreams,
     isAudioEnabled,
     isVideoEnabled,
+    isScreenSharing,
     videoCallParticipants = [],
     joinCall,
     leaveCall,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
   } = videoCall;
 
   // Join call when modal opens
@@ -69,8 +71,10 @@ const VideoCallModal = ({ isOpen, onClose, roomId, videoCall }) => {
             <VideoControls
               isAudioEnabled={isAudioEnabled}
               isVideoEnabled={isVideoEnabled}
+              isScreenSharing={isScreenSharing}
               onToggleAudio={toggleAudio}
               onToggleVideo={toggleVideo}
+              onToggleScreenShare={toggleScreenShare}
               onLeave={handleClose}
               participantCount={videoCallParticipants?.length || 0}
             />

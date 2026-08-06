@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import useSocket from '../../hooks/useSocket';
 import { REACTIONS } from '../../utils/constants';
 
 const Reactions = ({ roomId, onClose }) => {
-  const { sendReaction } = useSocket(roomId);
+  const { sendReaction } = useSocket(roomId, { listen: false });
   const [floatingReactions, setFloatingReactions] = useState([]);
+  const reactionIdRef = useRef(0);
 
   const handleReaction = (emoji) => {
     sendReaction(emoji);
@@ -13,8 +14,9 @@ const Reactions = ({ roomId, onClose }) => {
   };
 
   const addFloatingReaction = (emoji) => {
-    const id = Date.now() + Math.random(); // safer unique id
-    const left = Math.random() * 80 + 10; // range 10%-90%
+    reactionIdRef.current += 1;
+    const id = reactionIdRef.current;
+    const left = 10 + ((id * 37) % 80);
 
     setFloatingReactions((prev) => [...prev, { id, emoji, left }]);
 

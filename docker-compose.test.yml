@@ -1,0 +1,42 @@
+services:
+  mongo-test:
+    image: mongo:8.0
+    container_name: connect-mongo-test
+    restart: "no"
+    mem_limit: 768m
+    cpus: 1.0
+    command: ["mongod", "--auth", "--wiredTigerCacheSizeGB", "0.25"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: connect_test
+      MONGO_INITDB_ROOT_PASSWORD: connect_test_password
+      MONGO_INITDB_DATABASE: connect_test
+    ports:
+      - "127.0.0.1:27018:27017"
+    volumes:
+      - connect-mongo-test-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--host", "localhost", "--username", "connect_test", "--password", "connect_test_password", "--authenticationDatabase", "admin", "--eval", "db.adminCommand('ping').ok"]
+      # Windows Docker Desktop can take more than five seconds to start mongosh
+      # on low-memory machines even after mongod is ready.
+      interval: 10s
+      timeout: 20s
+      retries: 30
+      start_period: 120s
+
+  redis-test:
+    image: redis:7.4-alpine
+    container_name: connect-redis-test
+    restart: "no"
+    mem_limit: 128m
+    cpus: 0.5
+    command: ["redis-server", "--requirepass", "connect_redis_test", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", ""]
+    ports:
+      - "127.0.0.1:6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "connect_redis_test", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  connect-mongo-test-data:

@@ -180,12 +180,28 @@
 
 import { io } from "socket.io-client";
 import { SOCKET_URL } from "../utils/constants";
+import { getAccessToken, subscribeAccessToken } from "./api";
 
 class SocketService {
   socket = null;
+  listeners = new Map();
 
-  connect(token) {
-    if (this.socket?.connected) return this.socket;
+  constructor() {
+    subscribeAccessToken((token) => {
+      if (this.socket) {
+        this.socket.auth = { token };
+      }
+    });
+  }
+
+  connect(token = getAccessToken()) {
+    if (this.socket) {
+      this.socket.auth = { token };
+      if (!this.socket.connected && !this.socket.active) {
+        this.socket.connect();
+      }
+      return this.socket;
+    }
 
     this.socket = io(SOCKET_URL, {
       auth: { token },
@@ -193,11 +209,16 @@ class SocketService {
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      withCredentials: true,
 
     });
 
     this.socket.on("connect", () => {
-      console.log("🟢 Socket connected:", this.socket.id);
+      console.log("🟢 Socket connected:", this.socket?.id);
+    });
+
+    this.socket.on("connect_error", (error) => {
+      console.error("❌ Socket connection error:", error.message);
     });
 
     return this.socket;
@@ -227,8 +248,12 @@ class SocketService {
   }
 
   // CHAT
-  sendMessage(roomId, content) {
-    this.socket?.emit('send_message', { roomId, content });
+  sendMessage(roomId, content, attachments = []) {
+    this.socket?.emit('send_message', { roomId, content, attachments });
+  }
+
+  updateRoomEditor(roomId, editor, callback) {
+    this.socket?.emit('update_room_editor', { roomId, editor }, callback);
   }
 
   sendReaction(roomId, emoji) {
@@ -268,12 +293,52 @@ class SocketService {
     this.socket?.emit("ice_candidate", { roomId, candidate, targetUserId });
   }
 
+  // ON-DEMAND TICKETS
+  createTicket(data, callback) {
+    this.socket?.emit("create_ticket", data, callback);
+  }
+
+  lockTicket(ticketId, callback) {
+    this.socket?.emit("lock_ticket", { ticketId }, callback);
+  }
+
+  approveHelper(ticketId, callback) {
+    this.socket?.emit("approve_helper", { ticketId }, callback);
+  }
+
+  rejectHelper(ticketId, callback) {
+    this.socket?.emit("reject_helper", { ticketId }, callback);
+  }
+
+  cancelTicket(ticketId, callback) {
+    this.socket?.emit("cancel_ticket", { ticketId }, callback);
+  }
+
+  resolveTicket(ticketId, callback) {
+    this.socket?.emit("resolve_ticket", { ticketId }, callback);
+  }
+
   on(event, cb) {
     this.socket?.on(event, cb);
+
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, []);
+    }
+    this.listeners.get(event).push(cb);
   }
 
   off(event, cb) {
-    this.socket?.off(event, cb);
+    if (!this.socket) return;
+
+    if (!cb) {
+      this.socket.off(event);
+      this.listeners.delete(event);
+      return;
+    }
+
+    this.socket.off(event, cb);
+    const callbacks = this.listeners.get(event) || [];
+    this.listeners.set(event, callbacks.filter((listener) => listener !== cb));
   }
 }
 

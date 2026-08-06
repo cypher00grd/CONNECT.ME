@@ -9,34 +9,49 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          200: '#bae6fd',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-          800: '#075985',
-          900: '#0c4a6e',
-          950: '#082f49',
+          50: '#fff0f0',
+          100: '#ffe0e0',
+          200: '#ffc2c2',
+          300: '#ffa3a3',
+          400: '#ff7575',
+          500: '#ff4d4d', // OpenClaw Coral
+          600: '#e63946',
+          700: '#cc2936',
+          800: '#991b1b',
+          900: '#661010',
+          950: '#330606',
+        },
+        secondary: {
+          50: '#e0fcf9',
+          100: '#bdfaf4',
+          200: '#8af5ea',
+          300: '#52eedf',
+          400: '#26e8d2',
+          500: '#00e5cc', // Neon Cyan
+          600: '#00ccb6',
+          700: '#009988',
+          800: '#00665b',
+          900: '#00332d',
+          950: '#001a17',
         },
         dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617',
+          50: '#f0f4ff',
+          100: '#dce4f5',
+          200: '#b8c6e6',
+          300: '#8892b0', // Muted Text
+          400: '#5a6480',
+          500: '#3a4460',
+          600: '#2a344d',
+          700: '#1b233a',
+          800: '#111827', // Elevated Surface
+          900: '#0a0f1a', // Glass Surface
+          950: '#050810', // Deep Background
         },
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        sans: ['Satoshi', 'system-ui', '-apple-system', 'sans-serif'],
+        display: ['Clash Display', 'system-ui', 'sans-serif'],
+        mono: ['JetBrains Mono', 'SF Mono', 'monospace'],
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -55,8 +70,10 @@ export default {
         float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
       },
       boxShadow: {
-        glow: "0 0 20px rgba(14, 165, 233, 0.3)",
-        "glow-lg": "0 0 40px rgba(14, 165, 233, 0.4)",
+        glow: "0 0 20px rgba(255, 77, 77, 0.3)", // Coral glow
+        "glow-lg": "0 0 40px rgba(255, 77, 77, 0.4)",
+        "glow-cyan": "0 0 20px rgba(0, 229, 204, 0.3)",
+        glass: "0 8px 32px 0 rgba(0, 0, 0, 0.37)",
       },
     },
   },

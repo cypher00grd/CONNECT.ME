@@ -1,6 +1,56 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { authAPI } from "../../services/api";
+import { authAPI, clearAccessToken, setAccessToken } from "../../services/api";
 import socketService from "../../services/socket";
+
+const getId = (value) => {
+  if (!value) return "";
+  return String(value._id || value);
+};
+
+const isSameId = (left, right) => getId(left) === getId(right);
+
+const normalizeIdList = (values = [], ownUserId = "") => {
+  const seen = new Set();
+  return values
+    .map(getId)
+    .filter(Boolean)
+    .filter((id) => !isSameId(id, ownUserId))
+    .filter((id) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+};
+
+const sanitizeUser = (user) => {
+  if (!user) return null;
+
+  return {
+    ...user,
+    followers: normalizeIdList(user.followers || [], user._id),
+    following: normalizeIdList(user.following || [], user._id),
+  };
+};
+
+const getApiErrorMessage = (error, fallback) => {
+  const responseData = error.response?.data;
+  const fieldError = Array.isArray(responseData?.errors)
+    ? responseData.errors.find((item) => item?.message)
+    : null;
+
+  if (responseData?.message && responseData.message !== "Invalid request data") {
+    return responseData.message;
+  }
+
+  if (fieldError) {
+    const fieldName = fieldError.path
+      ? `${fieldError.path.charAt(0).toUpperCase()}${fieldError.path.slice(1)}: `
+      : "";
+    return `${fieldName}${fieldError.message}`;
+  }
+
+  return responseData?.message || fallback;
+};
 
 // SAFE LOAD FROM LOCAL STORAGE
 // --------------------------------------
@@ -8,7 +58,7 @@ const loadUserFromStorage = () => {
   try {
     const storedUser = localStorage.getItem("user");
     if (storedUser && storedUser !== "undefined" && storedUser !== "null") {
-      return JSON.parse(storedUser);
+      return sanitizeUser(JSON.parse(storedUser));
     }
     return null;
   } catch (error) {
@@ -18,23 +68,9 @@ const loadUserFromStorage = () => {
   }
 };
 
-const loadTokenFromStorage = () => {
-  try {
-    const token = localStorage.getItem("token");
-    if (token && token !== "undefined" && token !== "null") {
-      return token;
-    }
-    return null;
-  } catch (error) {
-    console.error("Error loading token from localStorage:", error);
-    localStorage.removeItem("token");
-    return null;
-  }
-};
-
 const initialState = {
   user: loadUserFromStorage() || null,
-  token: loadTokenFromStorage() || null,
+  token: null,
   initialized: false, // To track if initialization has completed
   isLoading: false,
   isSuccess: false,
@@ -56,18 +92,18 @@ export const signup = createAsyncThunk(
       }
 
       const { token, ...user } = res.data.data;
+      const safeUser = sanitizeUser(user);
 
-      // Save
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(safeUser));
+      localStorage.removeItem("token");
+      setAccessToken(token);
 
       socketService.connect(token);
 
-      return { user, token };
+      return { user: safeUser, token };
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Signup failed"
-      );
+      clearAccessToken();
+      return thunkAPI.rejectWithValue(getApiErrorMessage(err, "Signup failed"));
     }
   }
 );
@@ -86,17 +122,18 @@ export const login = createAsyncThunk(
       }
 
       const { token, ...user } = res.data.data;
+      const safeUser = sanitizeUser(user);
 
-      localStorage.setItem("user", JSON.stringify(user));
-      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(safeUser));
+      localStorage.removeItem("token");
+      setAccessToken(token);
 
       socketService.connect(token);
 
-      return { user, token };
+      return { user: safeUser, token };
     } catch (err) {
-      return thunkAPI.rejectWithValue(
-        err.response?.data?.message || "Login failed"
-      );
+      clearAccessToken();
+      return thunkAPI.rejectWithValue(getApiErrorMessage(err, "Login failed"));
     }
   }
 );
@@ -108,7 +145,7 @@ export const getMe = createAsyncThunk("auth/getMe", async (_, thunkAPI) => {
   try {
     const res = await authAPI.getMe();
     return res.data.data;
-  } catch (err) {
+  } catch {
     return thunkAPI.rejectWithValue("Failed to get user");
   }
 });
@@ -129,12 +166,12 @@ export const updateProfile = createAsyncThunk(
       const updated = res.data.data;
 
       const current = JSON.parse(localStorage.getItem("user"));
-      const merged = { ...current, ...updated };
+      const merged = sanitizeUser({ ...current, ...updated });
 
       localStorage.setItem("user", JSON.stringify(merged));
 
       return merged;
-    } catch (err) {
+    } catch {
       return thunkAPI.rejectWithValue("Failed to update profile");
     }
   }
@@ -144,8 +181,15 @@ export const updateProfile = createAsyncThunk(
 // LOGOUT
 // --------------------------------------
 export const logout = createAsyncThunk("auth/logout", async () => {
+  try {
+    await authAPI.logout();
+  } catch {
+    // Local logout should still clear client state if the server session is already gone.
+  }
+
   localStorage.removeItem("user");
   localStorage.removeItem("token");
+  clearAccessToken();
   socketService.disconnect();
   return true;
 });
@@ -156,20 +200,26 @@ export const logout = createAsyncThunk("auth/logout", async () => {
 export const initializeAuth = createAsyncThunk(
   "auth/initialize",
   async (_, thunkAPI) => {
-    const token = localStorage.getItem("token");
-
-    if (!token) return null;
-
-    socketService.connect(token);
-
     try {
-      const res = await authAPI.getMe();
-      const freshUser = res.data.data;
+      localStorage.removeItem("token");
+      if (!localStorage.getItem("user")) {
+        clearAccessToken();
+        return null;
+      }
 
+      const res = await authAPI.refresh();
+      const { token, ...user } = res.data.data;
+      const freshUser = sanitizeUser(user);
+
+      setAccessToken(token);
       localStorage.setItem("user", JSON.stringify(freshUser));
-      return freshUser;
+      socketService.connect(token);
+
+      return { user: freshUser, token };
     } catch {
-      localStorage.clear();
+      clearAccessToken();
+      localStorage.removeItem("user");
+      localStorage.removeItem("token");
       return thunkAPI.rejectWithValue("Session expired");
     }
   }
@@ -193,7 +243,7 @@ const authSlice = createSlice({
     // Update entire following array
     updateUserFollowing: (state, action) => {
       if (state.user) {
-        state.user.following = action.payload;
+        state.user.following = normalizeIdList(action.payload, state.user._id);
         localStorage.setItem("user", JSON.stringify(state.user));
       }
     },
@@ -201,11 +251,15 @@ const authSlice = createSlice({
     // Add a user ID to following list
     addToFollowing: (state, action) => {
       if (state.user) {
-        const userId = action.payload;
+        const userId = getId(action.payload);
+        if (!userId || isSameId(userId, state.user._id)) return;
+
         if (!state.user.following) {
           state.user.following = [];
         }
-        if (!state.user.following.includes(userId)) {
+        state.user.following = normalizeIdList(state.user.following, state.user._id);
+
+        if (!state.user.following.some((id) => isSameId(id, userId))) {
           state.user.following.push(userId);
           localStorage.setItem("user", JSON.stringify(state.user));
         }
@@ -215,9 +269,9 @@ const authSlice = createSlice({
     // Remove a user ID from following list
     removeFromFollowing: (state, action) => {
       if (state.user && state.user.following) {
-        const userId = action.payload;
+        const userId = getId(action.payload);
         state.user.following = state.user.following.filter(
-          (id) => id !== userId
+          (id) => !isSameId(id, userId)
         );
         localStorage.setItem("user", JSON.stringify(state.user));
       }
@@ -225,8 +279,8 @@ const authSlice = createSlice({
 
     // Update user data directly
     setUser: (state, action) => {
-      state.user = action.payload;
-      localStorage.setItem("user", JSON.stringify(action.payload));
+      state.user = sanitizeUser(action.payload);
+      localStorage.setItem("user", JSON.stringify(state.user));
     },
   },
 
@@ -274,7 +328,7 @@ const authSlice = createSlice({
 
       // GET ME
       .addCase(getMe.fulfilled, (state, action) => {
-        state.user = { ...state.user, ...action.payload };
+        state.user = sanitizeUser({ ...state.user, ...action.payload });
       })
 
       // UPDATE PROFILE
@@ -306,7 +360,8 @@ const authSlice = createSlice({
         state.isLoading = false;
         state.initialized = true;
         if (action.payload) {
-          state.user = action.payload || null;
+          state.user = sanitizeUser(action.payload.user) || null;
+          state.token = action.payload.token || null;
         }
       })
       .addCase(initializeAuth.rejected, (state) => {

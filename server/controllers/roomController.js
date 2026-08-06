@@ -1,10 +1,103 @@
 // controllers/roomController.js
 
+import mongoose from 'mongoose';
 import Room from '../models/Room.js';
 import User from '../models/User.js';
 import Message from '../models/Message.js';
 import Notification from '../models/Notification.js';
 import Booking from '../models/Booking.js';
+import { endTicketSessionEarly } from '../services/ticketMatchingService.js';
+import { normalizeCategory } from '../utils/categories.js';
+
+const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
+
+const toIdString = (value) => {
+  if (!value) return '';
+  return (value._id || value).toString();
+};
+
+const sameId = (left, right) => toIdString(left) === toIdString(right);
+
+const SESSION_TYPES = new Set([
+  'pair_programming',
+  'code_review',
+  'debugging',
+  'system_design',
+  'mock_interview',
+  'workshop',
+  'open_discussion',
+  'mentoring'
+]);
+
+const DIFFICULTIES = new Set(['beginner', 'intermediate', 'advanced', 'any']);
+
+const normalizeTags = (tags, limit = 8) => {
+  if (!Array.isArray(tags)) return [];
+
+  return [
+    ...new Set(
+      tags
+        .map((tag) => (typeof tag === 'string' ? tag.trim().toLowerCase() : ''))
+        .filter(Boolean)
+    )
+  ].slice(0, limit);
+};
+
+const normalizeUrl = (value) => {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+
+  try {
+    const parsed = new URL(trimmed);
+    return ['http:', 'https:'].includes(parsed.protocol) ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+};
+
+const getRoomAccess = async (room, userId) => {
+  const isCreator = sameId(room.creator?._id || room.creator, userId);
+
+  if (isCreator) {
+    return { isCreator, isAllowed: true };
+  }
+
+  if (room.type === 'live_event') {
+    const booking = await Booking.exists({
+      user: userId,
+      room: room._id,
+      paymentStatus: 'paid'
+    });
+
+    return { isCreator, isAllowed: !!booking };
+  }
+
+  if (room.type === 'vod_session' || room.type === 'issue_session') {
+    const isParticipant = (room.participants || []).some((participant) =>
+      sameId(participant.user, userId)
+    );
+
+    return { isCreator, isAllowed: isParticipant };
+  }
+
+  const followers = room.creator?.followers || [];
+  const isFollower = followers.some((follower) => sameId(follower, userId));
+
+  return { isCreator, isAllowed: isFollower };
+};
+
+const getAccessDeniedMessage = (room) => {
+  if (room.type === 'live_event') {
+    return 'You must pre-book a ticket to view this live event';
+  }
+
+  if (room.type === 'vod_session' || room.type === 'issue_session') {
+    return 'You are not a participant in this private session';
+  }
+
+  return 'You must follow this user to view this room';
+};
 
 // -----------------------------------------------------
 // CREATE ROOM
@@ -15,6 +108,10 @@ export const createRoom = async (req, res, next) => {
       title,
       description,
       category,
+      techTags,
+      difficulty,
+      sessionType,
+      repositoryUrl,
       isVideoEnabled,
       autoDeleteMinutes,
       autoDeleteAt,
@@ -54,7 +151,11 @@ export const createRoom = async (req, res, next) => {
     const room = await Room.create({
       title,
       description: description || '',
-      category: category || 'other',
+      category: normalizeCategory(category),
+      techTags: normalizeTags(techTags),
+      difficulty: DIFFICULTIES.has(difficulty) ? difficulty : 'any',
+      sessionType: SESSION_TYPES.has(sessionType) ? sessionType : 'open_discussion',
+      repositoryUrl: normalizeUrl(repositoryUrl),
       creator: req.user._id,
       isVideoEnabled: isVideoEnabled || false,
       autoDeleteAt: finalAutoDeleteAt,
@@ -110,24 +211,50 @@ export const createRoom = async (req, res, next) => {
 export const scheduleRoom = async (req, res, next) => {
   try {
     const { title, description, category, scheduledStartTime, entryFee } = req.body;
+    const normalizedTitle = typeof title === 'string' ? title.trim() : '';
+    const scheduledDate = new Date(scheduledStartTime);
+    const entryFeeNumber = Number(entryFee);
 
-    if (!title || !scheduledStartTime || entryFee === undefined) {
+    if (!normalizedTitle || !scheduledStartTime || entryFee === undefined) {
       return res.status(400).json({
         success: false,
         message: 'Title, scheduledStartTime, and entryFee are required'
       });
     }
 
+    if (Number.isNaN(scheduledDate.getTime())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid scheduled start time'
+      });
+    }
+
+    if (scheduledDate <= new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Scheduled start time must be in the future'
+      });
+    }
+
+    if (!Number.isInteger(entryFeeNumber) || entryFeeNumber < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Entry fee must be a whole rupee amount of at least 1'
+      });
+    }
+
     const room = await Room.create({
-      title,
-      description: description || '',
-      category: category || 'live_event',
+      title: normalizedTitle,
+      description: typeof description === 'string' ? description.trim() : '',
+      category: normalizeCategory(category),
+      sessionType: 'workshop',
+      difficulty: 'any',
       creator: req.user._id,
       type: 'live_event',
       status: 'scheduled',
-      scheduledStartTime: new Date(scheduledStartTime),
-      entryFee: Number(entryFee),
-      participants: [{ user: req.user._id }]
+      scheduledStartTime: scheduledDate,
+      entryFee: entryFeeNumber,
+      participants: []
     });
 
     const populatedRoom = await Room.findById(room._id)
@@ -143,7 +270,7 @@ export const scheduleRoom = async (req, res, next) => {
         sender: req.user._id,
         type: 'announcement', // Using announcement type since we want it to go to inbox
         room: room._id,
-        message: `${creator.displayName} scheduled a Live Event: "${title}". Book your ticket now!`
+        message: `${creator.displayName} scheduled a Live Event: "${normalizedTitle}". Book your ticket now!`
       }));
 
       await Notification.insertMany(notifications);
@@ -160,7 +287,7 @@ export const scheduleRoom = async (req, res, next) => {
               displayName: creator.displayName,
               avatar: creator.avatar
             },
-            message: `${creator.displayName} scheduled a Live Event: "${title}". Book your ticket now!`
+            message: `${creator.displayName} scheduled a Live Event: "${normalizedTitle}". Book your ticket now!`
           });
         });
       }
@@ -177,21 +304,43 @@ export const scheduleRoom = async (req, res, next) => {
 // -----------------------------------------------------
 export const startEvent = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const room = await Room.findById(req.params.id);
 
     if (!room) {
       return res.status(404).json({ success: false, message: 'Room not found' });
     }
 
-    if (room.creator.toString() !== req.user._id.toString()) {
+    if (!sameId(room.creator, req.user._id)) {
       return res.status(403).json({ success: false, message: 'Not authorized to start this event' });
+    }
+
+    if (room.type !== 'live_event') {
+      return res.status(400).json({ success: false, message: 'Only scheduled live events can be started here' });
     }
 
     if (room.status !== 'scheduled') {
       return res.status(400).json({ success: false, message: 'Room is not scheduled' });
     }
 
+    if (!room.scheduledStartTime || room.scheduledStartTime > new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'This event can only be started at its scheduled time',
+        startsAt: room.scheduledStartTime
+      });
+    }
+
     room.status = 'active';
+    const creatorAlreadyJoined = room.participants.some((participant) =>
+      sameId(participant.user, req.user._id)
+    );
+    if (!creatorAlreadyJoined) {
+      room.participants.push({ user: req.user._id });
+    }
     await room.save();
 
     const populatedRoom = await Room.findById(room._id)
@@ -209,20 +358,22 @@ export const startEvent = async (req, res, next) => {
 // -----------------------------------------------------
 export const getFeedRooms = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id);
-    const userBookings = await Booking.find({ user: req.user._id, paymentStatus: 'paid' });
-    const bookedRoomIds = userBookings.map(b => b.room);
+    const user = await User.findById(req.user._id).select('following').lean();
+    const bookedRoomIds = await Booking.distinct('room', {
+      user: req.user._id,
+      paymentStatus: 'paid'
+    });
 
     const rooms = await Room.find({
       $or: [
-        { creator: { $in: [...user.following, user._id] }, status: 'active' },
+        { creator: { $in: [...user.following, user._id] }, status: 'active', type: { $in: ['standard', 'live_event'] } },
         { _id: { $in: bookedRoomIds }, status: 'scheduled' },
         { creator: user._id, status: 'scheduled' }
       ]
     })
       .populate('creator', 'username displayName avatar')
       .populate('participants.user', 'username displayName avatar')
-      .sort({ createdAt: -1 });
+      .sort({ status: 1, scheduledStartTime: 1, createdAt: -1 });
 
     res.status(200).json({ success: true, data: rooms });
   } catch (err) {
@@ -251,30 +402,34 @@ export const getMyRooms = async (req, res, next) => {
 // -----------------------------------------------------
 export const getUserScheduledRooms = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user id' });
+    }
+
     const rooms = await Room.find({ creator: req.params.userId, status: 'scheduled' })
       .populate('creator', 'username displayName avatar')
-      .sort({ scheduledStartTime: 1 });
+      .sort({ scheduledStartTime: 1 })
+      .lean();
 
-    // Determine if the requesting user has booked each room
-    const roomsWithBookingStatus = await Promise.all(rooms.map(async (room) => {
-      let isBooked = false;
-      // The creator inherently has access
-      if (room.creator._id.toString() === req.user._id.toString()) {
-        isBooked = true;
-      } else {
-        const booking = await Booking.findOne({
-          user: req.user._id,
-          room: room._id,
-          paymentStatus: 'paid'
-        });
-        isBooked = !!booking;
-      }
+    const roomIds = rooms.map((room) => room._id);
+    const bookedRoomIds = new Set(
+      (await Booking.distinct('room', {
+        user: req.user._id,
+        room: { $in: roomIds },
+        paymentStatus: 'paid'
+      })).map(toIdString)
+    );
+
+    const now = new Date();
+    const roomsWithBookingStatus = rooms.map((room) => {
+      const isCreator = sameId(room.creator?._id, req.user._id);
 
       return {
-        ...room.toObject(),
-        isBooked
+        ...room,
+        isBooked: isCreator || bookedRoomIds.has(toIdString(room._id)),
+        isStartable: isCreator && room.scheduledStartTime <= now
       };
-    }));
+    });
 
     res.status(200).json({ success: true, data: roomsWithBookingStatus });
   } catch (err) {
@@ -287,39 +442,38 @@ export const getUserScheduledRooms = async (req, res, next) => {
 // -----------------------------------------------------
 export const getRoom = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const room = await Room.findById(req.params.id)
       .populate('creator', 'username displayName avatar followers')
-      .populate('participants.user', 'username displayName avatar');
+      .populate('participants.user', 'username displayName avatar')
+      .populate('ticket', 'title status estimatedMinutes bountyAmount paymentStatus sessionStartedAt minimumMetAt actualDurationSeconds requester acceptedBy')
+      .populate('issue', 'title status bountyAmount paymentStatus poster acceptedResolver')
+      .populate('sharedEditor.updatedBy', 'username displayName avatar');
 
     if (!room)
       return res.status(404).json({ success: false, message: 'Room not found' });
 
-    const isCreator = room.creator._id.toString() === req.user._id.toString();
-    const isFollower = room.creator.followers.some(
-      (f) => f.toString() === req.user._id.toString()
-    );
+    const isCreator = sameId(room.creator._id, req.user._id);
 
-    // 🛡️ WebRTC ACCESS CONTROL: Live Events require explicit paid tickets
-    if (room.type === 'live_event' && !isCreator) {
-      const booking = await Booking.findOne({
-        user: req.user._id,
-        room: room._id,
-        paymentStatus: 'paid'
+    if (room.status === 'scheduled') {
+      return res.status(409).json({
+        success: false,
+        message: 'This live event has not started yet',
+        startsAt: room.scheduledStartTime,
+        isStartable: isCreator && room.scheduledStartTime <= new Date()
       });
-
-      if (!booking) {
-        return res.status(403).json({
-          success: false,
-          message: 'You must pre-book a ticket to view this live event'
-        });
-      }
     }
 
-    if (!isCreator && !isFollower && room.type !== 'live_event')
+    const { isAllowed } = await getRoomAccess(room, req.user._id);
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: 'You must follow this user to view this room'
+        message: getAccessDeniedMessage(room)
       });
+    }
 
     res.status(200).json({ success: true, data: room });
   } catch (err) {
@@ -332,6 +486,10 @@ export const getRoom = async (req, res, next) => {
 // -----------------------------------------------------
 export const joinRoom = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const room = await Room.findById(req.params.id)
       .populate('creator', 'username displayName avatar followers');
 
@@ -341,46 +499,28 @@ export const joinRoom = async (req, res, next) => {
     if (room.status !== 'active')
       return res.status(400).json({
         success: false,
-        message: 'This room has ended'
+        message: room.status === 'scheduled'
+          ? 'This live event has not started yet'
+          : 'This room has ended'
       });
 
-    const isCreator = room.creator._id.toString() === req.user._id.toString();
-
-    // 🛡️ WebRTC ACCESS CONTROL: Live Events require explicit paid tickets
-    if (room.type === 'live_event' && !isCreator) {
-      const booking = await Booking.findOne({
-        user: req.user._id,
-        room: room._id,
-        paymentStatus: 'paid'
-      });
-
-      if (!booking) {
-        return res.status(403).json({
-          success: false,
-          message: 'You must pre-book a ticket to join this live event'
-        });
-      }
-    }
-
-    const isFollower = room.creator.followers.some(
-      (f) => f.toString() === req.user._id.toString()
-    );
-
-    if (!isCreator && !isFollower && room.type !== 'live_event')
+    const { isAllowed } = await getRoomAccess(room, req.user._id);
+    if (!isAllowed) {
       return res.status(403).json({
         success: false,
-        message: 'You must follow this user to join'
+        message: getAccessDeniedMessage(room)
       });
+    }
 
-    if (room.participants.length >= room.maxParticipants)
+    const alreadyJoined = room.participants.some(
+      (p) => sameId(p.user, req.user._id)
+    );
+
+    if (!alreadyJoined && room.participants.length >= room.maxParticipants)
       return res.status(400).json({
         success: false,
         message: 'Room is full'
       });
-
-    const alreadyJoined = room.participants.some(
-      (p) => p.user.toString() === req.user._id.toString()
-    );
 
     if (!alreadyJoined) {
       room.participants.push({ user: req.user._id });
@@ -389,7 +529,10 @@ export const joinRoom = async (req, res, next) => {
 
     const updatedRoom = await Room.findById(room._id)
       .populate('creator', 'username displayName avatar')
-      .populate('participants.user', 'username displayName avatar');
+      .populate('participants.user', 'username displayName avatar')
+      .populate('ticket', 'title status estimatedMinutes bountyAmount paymentStatus sessionStartedAt minimumMetAt actualDurationSeconds requester acceptedBy')
+      .populate('issue', 'title status bountyAmount paymentStatus poster acceptedResolver')
+      .populate('sharedEditor.updatedBy', 'username displayName avatar');
 
     const io = req.app.get('io');
     if (io) {
@@ -415,16 +558,26 @@ export const joinRoom = async (req, res, next) => {
 // -----------------------------------------------------
 export const leaveRoom = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const room = await Room.findById(req.params.id);
 
     if (!room)
       return res.status(404).json({ success: false, message: 'Room not found' });
 
-    room.participants = room.participants.filter(
-      (p) => p.user.toString() !== req.user._id.toString()
-    );
+    if (room.type === 'vod_session') {
+      await endTicketSessionEarly(req.app.get('io'), room._id, req.user._id);
+    }
 
-    await room.save();
+    if (room.type !== 'vod_session' && room.type !== 'issue_session') {
+      room.participants = room.participants.filter(
+        (p) => !sameId(p.user, req.user._id)
+      );
+
+      await room.save();
+    }
 
     const io = req.app.get('io');
     if (io) {
@@ -445,12 +598,16 @@ export const leaveRoom = async (req, res, next) => {
 // -----------------------------------------------------
 export const destroyRoom = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const room = await Room.findById(req.params.id);
 
     if (!room)
       return res.status(404).json({ success: false, message: 'Room not found' });
 
-    if (room.creator.toString() !== req.user._id.toString())
+    if (!sameId(room.creator, req.user._id))
       return res.status(403).json({
         success: false,
         message: 'Only the creator can end this room'
@@ -479,16 +636,51 @@ export const destroyRoom = async (req, res, next) => {
 // -----------------------------------------------------
 export const getRoomMessages = async (req, res, next) => {
   try {
+    if (!isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, message: 'Invalid room id' });
+    }
+
     const { limit = 50, before } = req.query;
+    const room = await Room.findById(req.params.id)
+      .populate('creator', 'followers');
+
+    if (!room) {
+      return res.status(404).json({ success: false, message: 'Room not found' });
+    }
+
+    if (room.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Messages are available only while the room is live'
+      });
+    }
+
+    const { isAllowed } = await getRoomAccess(room, req.user._id);
+    if (!isAllowed) {
+      return res.status(403).json({
+        success: false,
+        message: getAccessDeniedMessage(room)
+      });
+    }
+
+    const parsedLimit = Number.parseInt(limit, 10);
+    const safeLimit = Number.isInteger(parsedLimit)
+      ? Math.min(Math.max(parsedLimit, 1), 100)
+      : 50;
 
     const query = { room: req.params.id };
 
-    if (before) query.createdAt = { $lt: new Date(before) };
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!Number.isNaN(beforeDate.getTime())) {
+        query.createdAt = { $lt: beforeDate };
+      }
+    }
 
     const messages = await Message.find(query)
       .populate('sender', 'username displayName avatar')
       .sort({ createdAt: -1 })
-      .limit(parseInt(limit));
+      .limit(safeLimit);
 
     res.status(200).json({
       success: true,

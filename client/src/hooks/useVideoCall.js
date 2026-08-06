@@ -295,13 +295,12 @@
 
 
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import socketService from "../services/socket";
 import {
   setVideoCallActive,
   addVideoCallParticipant,
-  removeVideoCallParticipant,
   clearVideoCall,
 } from "../redux/Slices/roomSlice";
 
@@ -318,10 +317,12 @@ export const useVideoCall = (roomId, isSpectator = false) => {
   const [remoteStreams, setRemoteStreams] = useState({});
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const peerConnections = useRef({});
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
+  const cameraTrackRef = useRef(null);
 
   /* ===========================
      GET LOCAL MEDIA
@@ -339,6 +340,7 @@ export const useVideoCall = (roomId, isSpectator = false) => {
 
       setLocalStream(stream);
       localStreamRef.current = stream;
+      cameraTrackRef.current = stream.getVideoTracks()[0] || null;
 
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -557,15 +559,79 @@ export const useVideoCall = (roomId, isSpectator = false) => {
     }
   };
 
+  const replaceOutboundVideoTrack = async (track) => {
+    await Promise.all(
+      Object.values(peerConnections.current).map(async (pc) => {
+        const sender = pc.getSenders().find((candidate) => candidate.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(track);
+        }
+      })
+    );
+
+    const stream = localStreamRef.current;
+    if (stream) {
+      stream.getVideoTracks().forEach((oldTrack) => stream.removeTrack(oldTrack));
+      if (track) stream.addTrack(track);
+      setLocalStream(new MediaStream(stream.getTracks()));
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+      }
+    }
+  };
+
+  const stopScreenShare = async () => {
+    const currentVideoTrack = localStreamRef.current?.getVideoTracks()[0];
+    if (currentVideoTrack && currentVideoTrack !== cameraTrackRef.current) {
+      currentVideoTrack.stop();
+    }
+
+    if (cameraTrackRef.current) {
+      await replaceOutboundVideoTrack(cameraTrackRef.current);
+    }
+
+    setIsScreenSharing(false);
+  };
+
+  const toggleScreenShare = async () => {
+    if (isSpectator) return;
+
+    if (isScreenSharing) {
+      await stopScreenShare();
+      return;
+    }
+
+    const stream = await getLocalStream();
+    if (!stream) return;
+
+    try {
+      cameraTrackRef.current = stream.getVideoTracks()[0] || cameraTrackRef.current;
+      const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false,
+      });
+      const screenTrack = displayStream.getVideoTracks()[0];
+      screenTrack.onended = () => {
+        stopScreenShare();
+      };
+      await replaceOutboundVideoTrack(screenTrack);
+      setIsScreenSharing(true);
+    } catch (error) {
+      console.error('Screen share error:', error);
+    }
+  };
+
   return {
     localVideoRef,
     localStream,
     remoteStreams,
     isAudioEnabled,
     isVideoEnabled,
+    isScreenSharing,
     videoCallParticipants,
     toggleAudio,
     toggleVideo,
+    toggleScreenShare,
     startCall,
     joinCall,
     leaveCall,

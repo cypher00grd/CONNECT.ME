@@ -36,7 +36,7 @@ export const PageLoader = () => (
         <div className="absolute inset-0 w-16 h-16 border-4 border-transparent border-t-primary-500 rounded-full animate-spin" />
       </div>
 
-      <p className="text-lg font-semibold text-gradient">CONNECT</p>
+      <p className="text-lg font-semibold text-gradient">Connect.dev</p>
     </div>
   </div>
 );

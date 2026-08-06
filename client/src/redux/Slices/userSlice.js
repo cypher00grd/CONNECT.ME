@@ -7,6 +7,8 @@ const initialState = {
   viewedProfile: null,
   isLoading: false,
   isSearching: false,
+  searchRequestId: null,
+  suggestionsRequestId: null,
   isError: false,
   message: '',
 };
@@ -28,9 +30,9 @@ export const searchUsers = createAsyncThunk(
 // Get suggestions
 export const getSuggestions = createAsyncThunk(
   'users/suggestions',
-  async (_, thunkAPI) => {
+  async (filters = {}, thunkAPI) => {
     try {
-      const response = await userAPI.getSuggestions();
+      const response = await userAPI.getSuggestions(filters);
       return response.data.data;
     } catch (error) {
       const message = error.response?.data?.message || 'Failed to get suggestions';
@@ -87,6 +89,8 @@ const userSlice = createSlice({
   reducers: {
     clearSearchResults: (state) => {
       state.searchResults = [];
+      state.searchRequestId = null;
+      state.isSearching = false;
     },
     clearViewedProfile: (state) => {
       state.viewedProfile = null;
@@ -113,28 +117,38 @@ const userSlice = createSlice({
   extraReducers: (builder) => {
     builder
       // Search
-      .addCase(searchUsers.pending, (state) => {
+      .addCase(searchUsers.pending, (state, action) => {
         state.isSearching = true;
+        state.searchRequestId = action.meta.requestId;
       })
       .addCase(searchUsers.fulfilled, (state, action) => {
+        if (state.searchRequestId !== action.meta.requestId) return;
         state.isSearching = false;
+        state.searchRequestId = null;
         state.searchResults = action.payload;
       })
       .addCase(searchUsers.rejected, (state, action) => {
+        if (state.searchRequestId !== action.meta.requestId) return;
         state.isSearching = false;
+        state.searchRequestId = null;
         state.isError = true;
         state.message = action.payload;
       })
       // Suggestions
-      .addCase(getSuggestions.pending, (state) => {
+      .addCase(getSuggestions.pending, (state, action) => {
         state.isLoading = true;
+        state.suggestionsRequestId = action.meta.requestId;
       })
       .addCase(getSuggestions.fulfilled, (state, action) => {
+        if (state.suggestionsRequestId !== action.meta.requestId) return;
         state.isLoading = false;
+        state.suggestionsRequestId = null;
         state.suggestions = action.payload;
       })
       .addCase(getSuggestions.rejected, (state, action) => {
+        if (state.suggestionsRequestId !== action.meta.requestId) return;
         state.isLoading = false;
+        state.suggestionsRequestId = null;
         state.message = action.payload;
       })
       // Get Profile

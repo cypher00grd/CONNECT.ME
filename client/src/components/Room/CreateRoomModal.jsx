@@ -1,13 +1,20 @@
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import { Video, Clock, Users, Sparkles } from 'lucide-react';
+import { Video, Clock, Users, GitBranch } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
+import SkillTagInput from '../common/SkillTagInput';
 import { createRoom } from '../../redux/Slices/roomSlice';
-import { CATEGORIES, AUTO_DELETE_OPTIONS } from '../../utils/constants';
+import {
+  CATEGORIES,
+  AUTO_DELETE_OPTIONS,
+  ROOM_DIFFICULTIES,
+  ROOM_SESSION_TYPES,
+  TECH_STACK_SUGGESTIONS
+} from '../../utils/constants';
 
 const CreateRoomModal = ({ isOpen, onClose }) => {
   const dispatch = useDispatch();
@@ -18,6 +25,10 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
     title: '',
     description: '',
     category: 'other',
+    sessionType: 'open_discussion',
+    techTags: [],
+    difficulty: 'any',
+    repositoryUrl: '',
     isVideoEnabled: false,
     autoDeleteMinutes: null,
     maxParticipants: 10,
@@ -51,6 +62,10 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
         title: '',
         description: '',
         category: 'other',
+        sessionType: 'open_discussion',
+        techTags: [],
+        difficulty: 'any',
+        repositoryUrl: '',
         isVideoEnabled: false,
         autoDeleteMinutes: null,
         maxParticipants: 10,
@@ -61,7 +76,7 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Create a Room" size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title="Create a Developer Room" size="lg">
       <form onSubmit={handleSubmit} className="p-6 space-y-6">
         {error && (
           <motion.div
@@ -75,9 +90,9 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
 
         {/* Title */}
         <Input
-          label="What's happening?"
+          label="Session title"
           name="title"
-          placeholder="e.g., Guys I'm singing! 🎤"
+          placeholder="e.g., Debugging auth flow in Next.js 15"
           value={formData.title}
           onChange={handleChange}
         />
@@ -91,7 +106,7 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
             name="description"
             value={formData.description}
             onChange={handleChange}
-            placeholder="Tell more about this room..."
+            placeholder="Add the tech context, goal, or repo area you want to discuss..."
             rows={3}
             className="input-field resize-none"
             maxLength={500}
@@ -101,31 +116,91 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
           </p>
         </div>
 
-        {/* Category */}
+        {/* Session Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-3">
-            Category
+            Session type
           </label>
-          <div className="grid grid-cols-5 gap-2">
-            {CATEGORIES.map((cat) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            {ROOM_SESSION_TYPES.map((type) => (
               <button
-                key={cat.value}
+                key={type.value}
                 type="button"
-                onClick={() => setFormData((prev) => ({ ...prev, category: cat.value }))}
+                onClick={() => setFormData((prev) => ({ ...prev, sessionType: type.value }))}
                 className={`
-                  flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all
-                  ${formData.category === cat.value
-                    ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-                    : 'border-gray-200 dark:border-dark-600 hover:border-gray-300 dark:hover:border-dark-500'
+                  flex items-center gap-2 p-3 rounded-xl border text-left transition-all duration-300 ring-1 ring-inset ring-transparent
+                  ${formData.sessionType === type.value
+                    ? 'border-primary-500 bg-primary-500/10 text-primary-500 shadow-[0_0_15px_rgba(255,77,77,0.2)] ring-primary-500'
+                    : 'border-gray-200 dark:border-dark-700 hover:border-primary-500/50 hover:bg-gray-50 dark:hover:bg-dark-800'
                   }
                 `}
               >
-                <span className="text-2xl mb-1">{cat.emoji}</span>
-                <span className="text-xs text-gray-600 dark:text-gray-300">{cat.label}</span>
+                <span className="text-xl">{type.emoji}</span>
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-200">{type.label}</span>
               </button>
             ))}
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+              Engineering area
+            </label>
+            <select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              className="input-field"
+            >
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.emoji} {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1.5">
+              Difficulty
+            </label>
+            <select
+              name="difficulty"
+              value={formData.difficulty}
+              onChange={handleChange}
+              className="input-field"
+            >
+              {ROOM_DIFFICULTIES.map((difficulty) => (
+                <option key={difficulty.value} value={difficulty.value}>
+                  {difficulty.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <SkillTagInput
+          label="Tech tags"
+          value={formData.techTags}
+          onChange={(techTags) => setFormData((prev) => ({ ...prev, techTags }))}
+          placeholder="React, Auth, Redis..."
+          max={8}
+          suggestions={[
+            ...TECH_STACK_SUGGESTIONS.languages,
+            ...TECH_STACK_SUGGESTIONS.frameworks,
+            ...TECH_STACK_SUGGESTIONS.tools,
+          ]}
+        />
+
+        <Input
+          label="Repository URL (optional)"
+          name="repositoryUrl"
+          placeholder="https://github.com/you/project"
+          value={formData.repositoryUrl}
+          onChange={handleChange}
+          leftIcon={<GitBranch size={18} />}
+        />
 
         {/* Options Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -188,7 +263,7 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
                 Enable Video Call
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Allow participants to join video
+                Allow developers to join video when needed
               </p>
             </div>
           </div>
@@ -219,7 +294,7 @@ const CreateRoomModal = ({ isOpen, onClose }) => {
             fullWidth
             isLoading={isLoading}
           >
-            Create Room
+            Create Developer Room
           </Button>
         </div>
       </form>

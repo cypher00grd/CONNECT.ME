@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import {
   Search,
   Bell,
+  Bug,
   Plus,
   Menu,
   LogOut,
@@ -13,17 +14,15 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 import { logout } from '../../redux/Slices/authSlice';
 import useAuth from '../../hooks/useAuth';
-import useTheme from '../../hooks/useTheme';
 import Avatar from '../common/Avatar';
 import ThemeToggle from '../common/ThemeToggle';
 import NotificationDropdown from '../Notifications/NotificationDropdown';
 import SearchUsers from '../User/SearchUsers';
 
-const Navbar = ({ onMenuClick, onCreateRoom }) => {
+const Navbar = ({ onMenuClick, onCreateRoom, onPostIssue }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isDark } = useTheme();
 
   const [showSearch, setShowSearch] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -46,7 +45,7 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 glass border-b border-gray-200/50 dark:border-dark-700/50">
+    <nav className="fixed top-0 left-0 right-0 z-50 glass-dark border-b border-dark-800/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
         <div className="flex items-center justify-between h-16">
@@ -57,18 +56,18 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
             {/* Mobile Menu Button */}
             <button
               onClick={onMenuClick}
-              className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+              className="lg:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-800/50 rounded-xl transition-colors"
             >
-              <Menu size={24} className="text-gray-600 dark:text-gray-300" />
+              <Menu size={24} className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white" />
             </button>
 
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center">
-                <span className="text-white font-bold text-xl">C</span>
+            <Link to="/" className="flex items-center gap-3 group">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 flex items-center justify-center shadow-sm dark:shadow-glow group-hover:shadow-md dark:group-hover:shadow-glow-lg transition-all">
+                <span className="text-white font-display font-bold text-xl">C</span>
               </div>
-              <span className="text-xl font-bold text-gradient hidden sm:block">
-                Connect
+              <span className="text-xl font-display font-bold tracking-wide text-gray-900 dark:text-white hidden sm:block">
+                Connect<span className="text-primary-500">.dev</span>
               </span>
             </Link>
           </div>
@@ -84,17 +83,29 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
             {/* Mobile Search Toggle */}
             <button
               onClick={toggleSearch}
-              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+              className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-dark-800/50 rounded-xl transition-colors"
             >
-              <Search size={20} className="text-gray-600 dark:text-gray-300" />
+              <Search size={20} className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white" />
             </button>
+
+            {/* Post Issue Button (Desktop) */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={onPostIssue}
+              className="hidden sm:flex items-center gap-2 btn-secondary !px-4"
+            >
+              <Bug size={18} />
+              <span className="hidden lg:inline">Post Issue</span>
+              <span className="lg:hidden">Issue</span>
+            </motion.button>
 
             {/* Create Room Button (Desktop) */}
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={onCreateRoom}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 btn-primary"
+              className="hidden sm:flex items-center gap-2 btn-primary !px-4"
             >
               <Plus size={18} />
               <span>Create Room</span>
@@ -103,7 +114,7 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
             {/* Mobile Create Button */}
             <button
               onClick={onCreateRoom}
-              className="sm:hidden p-2 bg-primary-500 hover:bg-primary-600 text-white rounded-xl transition-colors"
+              className="sm:hidden p-2 bg-gradient-primary shadow-sm dark:shadow-glow hover:shadow-md dark:hover:shadow-glow-lg text-white rounded-full transition-all"
             >
               <Plus size={20} />
             </button>
@@ -118,7 +129,7 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
             <div className="relative">
               <button
                 onClick={toggleProfileMenu}
-                className="flex items-center gap-2 p-1.5 hover:bg-gray-100 dark:hover:bg-dark-700 rounded-xl transition-colors"
+                className="flex items-center gap-2 p-1.5 hover:bg-dark-800/50 rounded-full transition-colors border border-transparent hover:border-dark-700"
               >
                 <Avatar
                   src={user?.avatar}
@@ -141,14 +152,14 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 10 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-56 bg-white dark:bg-dark-800 rounded-xl shadow-lg border border-gray-100 dark:border-dark-700 py-2 z-20"
+                      className="absolute right-0 mt-2 w-56 bg-white dark:bg-dark-900 border border-gray-100 dark:border-dark-800 rounded-xl shadow-lg dark:shadow-glass py-2 z-20"
                     >
                       {/* User Info */}
-                      <div className="px-4 py-3 border-b border-gray-100 dark:border-dark-700">
+                      <div className="px-4 py-3 border-b border-gray-100 dark:border-dark-800/50">
                         <p className="font-medium text-gray-900 dark:text-white">
                           {user?.displayName}
                         </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-gray-500 dark:text-dark-300">
                           @{user?.username}
                         </p>
                       </div>
@@ -158,7 +169,7 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
                         <Link
                           to={`/profile/${user?.username}`}
                           onClick={closeProfileMenu}
-                          className="flex items-center gap-3 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors"
+                          className="flex items-center gap-3 px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-800/50 transition-colors"
                         >
                           <User size={18} />
                           Profile
@@ -167,7 +178,7 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
                         <Link
                           to="/settings"
                           onClick={closeProfileMenu}
-                          className="flex items-center gap-3 px-4 py-2 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-dark-700 transition-colors"
+                          className="flex items-center gap-3 px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-dark-800/50 transition-colors"
                         >
                           <Settings size={18} />
                           Settings
@@ -175,10 +186,10 @@ const Navbar = ({ onMenuClick, onCreateRoom }) => {
                       </div>
 
                       {/* Logout */}
-                      <div className="border-t border-gray-100 dark:border-dark-700 pt-1">
+                      <div className="border-t border-gray-100 dark:border-dark-800/50 pt-1">
                         <button
                           onClick={handleLogout}
-                          className="flex items-center gap-3 w-full px-4 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                          className="flex items-center gap-3 w-full px-4 py-2 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-300 transition-colors"
                         >
                           <LogOut size={18} />
                           Log out

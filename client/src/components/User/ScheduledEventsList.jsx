@@ -44,7 +44,7 @@ const ScheduledEventsList = ({ userId, isOwnProfile }) => {
         <div className="mb-8 space-y-4">
             <div className="flex items-center gap-2 mb-4">
                 <CalendarX2 className="text-primary-500" size={24} />
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Upcoming Live Events</h2>
+                <h2 className="text-xl font-display font-bold text-gray-900 dark:text-white tracking-tight">Upcoming Live Events</h2>
             </div>
 
             <div className="grid gap-4">

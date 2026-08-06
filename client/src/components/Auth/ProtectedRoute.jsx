@@ -1,5 +1,4 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import useAuth from '../../hooks/useAuth';
 import { PageLoader } from '../common/Loader';
 import { useSelector } from "react-redux"
 

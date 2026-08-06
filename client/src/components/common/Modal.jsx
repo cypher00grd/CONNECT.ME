@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const Modal = ({
   isOpen,
@@ -12,6 +13,8 @@ const Modal = ({
   closeOnOverlayClick = true,
   className = '',
 }) => {
+  const modalRef = useRef(null);
+  const titleId = useId();
   const sizes = {
     sm: 'max-w-sm',
     md: 'max-w-md',
@@ -51,23 +54,26 @@ const Modal = ({
     };
   }, [isOpen, onClose]);
 
-  // simple: focus first element when modal opens
+  // Focus the dialog itself so keyboard users start inside the active modal.
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
-        const el = document.querySelector('[data-modal-focus]');
-        if (el) el.focus();
+        modalRef.current?.focus();
       }, 0);
     }
   }, [isOpen]);
 
-  return (
+  if (typeof document === 'undefined') return null;
+
+  // Rendering at the document root keeps fixed positioning and backdrop filters
+  // independent from transformed/animated page cards.
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          
+        <div className="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6">
+
           {/* Overlay */}
-          <motion.div
+          <Motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -77,33 +83,40 @@ const Modal = ({
           />
 
           {/* Modal Content */}
-          <motion.div
+          <Motion.div
+            ref={modalRef}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className={`
-              relative w-full ${sizes[size]}
-              bg-white dark:bg-dark-800
-              rounded-2xl shadow-2xl
-              max-h-[90vh] overflow-hidden
+              relative mx-auto my-4 sm:my-8 w-full ${sizes[size]}
+              bg-white dark:bg-dark-900
+              border border-gray-100 dark:border-dark-700
+              rounded-2xl shadow-xl dark:shadow-glow
+              max-h-[calc(100vh-2rem)] sm:max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col
               ${className}
             `}
             onClick={(e) => e.stopPropagation()} // stop closing when clicking inside
-            data-modal-focus
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? titleId : undefined}
+            tabIndex={-1}
           >
 
             {/* Header */}
             {(title || showCloseButton) && (
-              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-dark-700">
+              <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-dark-700 bg-white dark:bg-dark-900">
                 {title && (
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  <h2 id={titleId} className="text-xl font-display font-bold text-gray-900 dark:text-white tracking-tight">
                     {title}
                   </h2>
                 )}
                 {showCloseButton && (
                   <button
+                    type="button"
                     onClick={onClose}
+                    aria-label="Close dialog"
                     className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 
                              hover:bg-gray-100 dark:hover:bg-dark-700 rounded-full transition-colors"
                   >
@@ -114,14 +127,15 @@ const Modal = ({
             )}
 
             {/* Body */}
-            <div className="overflow-y-auto max-h-[calc(90vh-80px)]">
+            <div className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
               {children}
             </div>
 
-          </motion.div>
+          </Motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 };
 
